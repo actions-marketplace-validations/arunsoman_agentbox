@@ -120,7 +120,7 @@
     <p class="sub">AGENTBOX straps a <b>black box</b> to any command or AI agent — no SDK, no cloud, no code changes. Every tool call, file edit, and URL hit lands on a <b>tamper-evident tape</b> you can scrub like security footage. When your agent terrifies you at 2am, you'll have an integrity-checked record.</p>
     <div class="cta">
       <a class="btn" href="https://github.com/arunsoman/agentbox">★ star on github</a>
-      <span class="btn ghost" id="copyNpx">npx @arunsoman/agentbox-cli demo — click to copy</span>
+      <span class="btn ghost" id="copyNpx">npx agentbox-flight-recorder demo — click to copy</span>
     </div>
     <div class="badges">
       <span><b>0</b> dependencies</span>
@@ -212,8 +212,8 @@
       <div class="step reveal"><span class="n">STEP 02</span><h3>Pick your tap</h3><p>Wrap it: <code>agentbox wrap -- anything</code>. Or skip the wrapper — <code>agentbox init claude</code> hooks every Claude Code session passively, and <code>agentbox mcp --</code> wire-taps any MCP server's JSON-RPC.</p></div>
       <div class="step reveal"><span class="n">STEP 03</span><h3>Ship the receipt</h3><p>Add the GitHub Action and every agent-touched PR arrives with its flight receipt stapled to it.</p></div>
     </div>
-    <div class="code" style="margin-top:22px"><button class="copy" data-copy='npx @arunsoman/agentbox-cli demo'>copy</button>
-<pre><span class="p6">npx</span> @arunsoman/agentbox-cli demo</pre>
+    <div class="code" style="margin-top:22px"><button class="copy" data-copy='npx agentbox-flight-recorder demo'>copy</button>
+<pre><span class="p6">npx</span> agentbox-flight-recorder demo</pre>
     </div>
   </div>
 </section>
@@ -294,7 +294,7 @@ document.querySelectorAll('.copy').forEach(b => b.addEventListener('click', () =
   });
 }));
 document.getElementById('copyNpx').addEventListener('click', function () {
-  navigator.clipboard.writeText('npx @arunsoman/agentbox-cli demo').then(() => {
+  navigator.clipboard.writeText('npx agentbox-flight-recorder demo').then(() => {
     const t = this.textContent; this.textContent = 'copied ✓ — paste it in a terminal';
     setTimeout(() => this.textContent = t, 1600);
   });

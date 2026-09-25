@@ -1,5 +1,5 @@
 {
-  "name": "@arunsoman/agentbox-cli",
+  "name": "agentbox-flight-recorder",
   "version": "0.2.1",
   "description": "⬢ The local black-box flight recorder for AI agents. Zero deps, hash-chained session logs.",
   "license": "MIT",
