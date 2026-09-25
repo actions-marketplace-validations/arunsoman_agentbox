@@ -33,7 +33,15 @@ function assertNotSymlink(file) {
   for (const part of absolute.slice(parsed.root.length).split(path.sep).filter(Boolean)) {
     current = path.join(current, part);
     try {
-      if (fs.lstatSync(current).isSymbolicLink()) throw new Error(`refusing symlink path: ${current}`);
+      if (fs.lstatSync(current).isSymbolicLink()) {
+        // macOS exposes /var (and sometimes /tmp) as aliases into /private.
+        // These are OS-owned, stable links rather than an attacker-controlled
+        // session path; keep checking the application-specific components.
+        const systemAlias = (process.platform === 'darwin' || process.platform.endsWith('bsd'))
+          && (current === '/var' || current === '/tmp')
+          && fs.realpathSync(current).startsWith('/private/');
+        if (!systemAlias) throw new Error(`refusing symlink path: ${current}`);
+      }
     } catch (e) {
       if (e.code === 'ENOENT') return;
       throw e;
