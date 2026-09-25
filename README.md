@@ -28,6 +28,14 @@ AGENTBOX is the answer. Strap a flight recorder to **any** command or agent — 
 npx agentbox-flight-recorder demo # see it in 10 seconds — no install, no config
 ```
 
+Install the CLI globally with npm if you use it regularly:
+
+```bash
+npm install --global agentbox-flight-recorder
+```
+
+After installation, run `agentbox demo` from any project.
+
 Or wrap your own agent:
 
 ```bash
@@ -138,6 +146,9 @@ The session meta event records `redact: true|false` so the policy is visible on 
 ```bash
 # 1. Watch a scripted agent get recorded (10 seconds)
 npx agentbox-flight-recorder demo
+
+# Or, after `npm install --global agentbox-flight-recorder`:
+agentbox demo
 
 # 2. Wrap anything — your agent, a script, any CLI
 agentbox wrap -- claude "refactor auth.js"
