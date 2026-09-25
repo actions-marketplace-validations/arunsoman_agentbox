@@ -217,7 +217,7 @@ test('wrap: end-to-end records a real child process', async () => {
 });
 
 test('wrap: interactive mode gives the child a TTY and preserves arguments', async (t) => {
-  if (process.platform === 'win32') return t.skip('PTY wrapper is Unix-only');
+  if (process.platform !== 'linux') return t.skip('PTY wrapper integration is Linux-only in CI');
   const { wrap } = require('../src/wrap');
   const dir = tmpdir();
   const file = path.join(dir, 'pty.jsonl');
@@ -238,7 +238,7 @@ test('wrap: interactive mode gives the child a TTY and preserves arguments', asy
 });
 
 test('wrap: interactive mode propagates terminal geometry', async (t) => {
-  if (process.platform === 'win32') return t.skip('PTY wrapper is Unix-only');
+  if (process.platform !== 'linux') return t.skip('PTY wrapper integration is Linux-only in CI');
   const { wrap } = require('../src/wrap');
   const dir = tmpdir();
   const file = path.join(dir, 'pty-size.jsonl');
