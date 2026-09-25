@@ -18,6 +18,29 @@ const CYAN = '\x1b[36m';
 const BOLD = '\x1b[1m';
 const RESET = '\x1b[0m';
 
+function shellQuote(arg) {
+  return `'${String(arg).replace(/'/g, `'"'"'`)}'`;
+}
+
+/**
+ * Interactive terminal programs (Codex, vim, etc.) must see a real TTY.
+ * util-linux `script` supplies a PTY while still letting us capture its output.
+ */
+function spawnSpec(commandArgs, usePty, terminalSize = {}) {
+  if (!usePty) return { command: commandArgs[0], args: commandArgs.slice(1) };
+
+  if (process.platform === 'darwin' || process.platform.endsWith('bsd')) {
+    return { command: 'script', args: ['-q', '/dev/null', ...commandArgs] };
+  }
+
+  const rows = Number.isInteger(terminalSize.rows) && terminalSize.rows > 0 ? terminalSize.rows : 24;
+  const columns = Number.isInteger(terminalSize.columns) && terminalSize.columns > 0 ? terminalSize.columns : 80;
+  // `script` writes to our capture pipe, so it cannot infer geometry from its
+  // own stdout. Set the newly allocated slave PTY before starting the command.
+  const command = `stty rows ${rows} cols ${columns} 2>/dev/null; exec ${commandArgs.map(shellQuote).join(' ')}`;
+  return { command: 'script', args: ['-qefc', command, '/dev/null'] };
+}
+
 /**
  * Line-buffered recorder around a raw stream.
  * Emits one event per complete line (kind classified), flushes the
@@ -85,9 +108,20 @@ function wrap(commandArgs, opts = {}) {
       process.stderr.write(`${DIM}${CYAN}⬢ agentbox${RESET}${DIM}: black box on → recording to ${file}${RESET}\n`);
     }
 
-    const child = spawn(commandArgs[0], commandArgs.slice(1), {
+    const usePty = opts.pty === true || (opts.pty !== false && process.stdin.isTTY && process.platform !== 'win32');
+    const terminalSize = opts.terminalSize || {
+      columns: process.stdout.columns || process.stderr.columns,
+      rows: process.stdout.rows || process.stderr.rows,
+    };
+    const spec = spawnSpec(commandArgs, usePty, terminalSize);
+    const child = spawn(spec.command, spec.args, {
       stdio: ['pipe', 'pipe', 'pipe'],
-      env: { ...process.env, AGENTBOX: '1', AGENTBOX_SESSION: file },
+      env: {
+        ...process.env,
+        AGENTBOX: '1',
+        AGENTBOX_SESSION: file,
+        ...(usePty ? { COLUMNS: String(terminalSize.columns || 80), LINES: String(terminalSize.rows || 24) } : {}),
+      },
       cwd: opts.cwd || process.cwd(),
     });
 
@@ -184,4 +218,4 @@ function wrap(commandArgs, opts = {}) {
   });
 }
 
-module.exports = { wrap, LineRecorder };
+module.exports = { wrap, LineRecorder, spawnSpec };

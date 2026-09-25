@@ -94,6 +94,44 @@ test('wrap: end-to-end records a real child process', async () => {
   assert.equal(exit.data.code, 0);
 });
 
+test('wrap: interactive mode gives the child a TTY and preserves arguments', async (t) => {
+  if (process.platform === 'win32') return t.skip('PTY wrapper is Unix-only');
+  const { wrap } = require('../src/wrap');
+  const dir = tmpdir();
+  const file = path.join(dir, 'pty.jsonl');
+  const tricky = "an argument with spaces and 'quotes'";
+  const r = await wrap([
+    'node', '-e',
+    "console.log(JSON.stringify({ stdin: process.stdin.isTTY, stdout: process.stdout.isTTY, stderr: process.stderr.isTTY, arg: process.argv[1] }))",
+    tricky,
+  ], { file, quiet: true, cwd: dir, pty: true });
+  assert.equal(r.exitCode, 0);
+  const res = verifyChain(file);
+  assert.equal(res.ok, true, res.reason);
+  const output = res.events.filter((e) => e.type === 'out').map((e) => e.data.text).join('\n');
+  assert.match(output, /"stdin":true/);
+  assert.match(output, /"stdout":true/);
+  assert.match(output, /"stderr":true/);
+  assert.match(output, /an argument with spaces and 'quotes'/);
+});
+
+test('wrap: interactive mode propagates terminal geometry', async (t) => {
+  if (process.platform === 'win32') return t.skip('PTY wrapper is Unix-only');
+  const { wrap } = require('../src/wrap');
+  const dir = tmpdir();
+  const file = path.join(dir, 'pty-size.jsonl');
+  const r = await wrap([
+    'node', '-e',
+    "console.log(JSON.stringify({ columns: process.stdout.columns, rows: process.stdout.rows }))",
+  ], { file, quiet: true, cwd: dir, pty: true, terminalSize: { columns: 117, rows: 41 } });
+  assert.equal(r.exitCode, 0);
+  const res = verifyChain(file);
+  assert.equal(res.ok, true, res.reason);
+  const output = res.events.filter((e) => e.type === 'out').map((e) => e.data.text).join('\n');
+  assert.match(output, /"columns":117/);
+  assert.match(output, /"rows":41/);
+});
+
 test('wrap: missing executable finalizes exactly once without an uncaught write', async () => {
   const { wrap } = require('../src/wrap');
   const dir = tmpdir();
