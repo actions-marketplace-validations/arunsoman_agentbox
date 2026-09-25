@@ -25,7 +25,7 @@ AI agents now run your shell, edit your files, and ship to prod — often with z
 AGENTBOX is the answer. Strap a flight recorder to **any** command or agent — no SDK, no code changes, no cloud — and get a tamper-evident tape of everything it did: every tool call, every file touched, every URL hit. Scrub through it like security footage when (not if) something goes wrong.
 
 ```bash
-npx agentbox-cli demo          # see it in 10 seconds — no install, no config
+npx @arunsoman/agentbox-cli demo # see it in 10 seconds — no install, no config
 ```
 
 Or wrap your own agent:
@@ -137,7 +137,7 @@ The session meta event records `redact: true|false` so the policy is visible on 
 
 ```bash
 # 1. Watch a scripted agent get recorded (10 seconds)
-npx agentbox-cli demo
+npx @arunsoman/agentbox-cli demo
 
 # 2. Wrap anything — your agent, a script, any CLI
 agentbox wrap -- claude "refactor auth.js"
