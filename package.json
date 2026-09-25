@@ -12,7 +12,7 @@
     "node": ">=18"
   },
   "scripts": {
-    "test": "node --test test/",  
+    "test": "node --test test/*.test.js",
     "demo": "node bin/agentbox.js demo",
     "preflight": "bash scripts/preflight.sh",
     "preflight:quick": "bash scripts/preflight.sh --quick"

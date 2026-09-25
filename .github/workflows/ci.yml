@@ -16,7 +16,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: ${{ matrix.node }}
-      - run: node --test test/
+      - run: node --test test/*.test.js
       - name: e2e — demo produces a verifiable session
         run: |
           node bin/agentbox.js demo
