@@ -15,6 +15,7 @@ const { redactEventData } = require('./redact');
 
 const GENESIS = '0'.repeat(64);
 const VERSION = '0.2.1';
+const LOCK_SLEEP = new Int32Array(new SharedArrayBuffer(4));
 
 function sha256(s) {
   return crypto.createHash('sha256').update(s).digest('hex');
@@ -32,6 +33,9 @@ class Recorder {
     this.i = 0;
     this.prev = GENESIS;
     this.redactions = 0;
+    this.pending = [];
+    this.pendingBytes = 0;
+    this.flushTimer = null;
     fs.mkdirSync(path.dirname(file), { recursive: true });
     this.fd = fs.openSync(file, 'w');
     // stamp redaction policy into meta so the tape is self-describing
@@ -39,6 +43,18 @@ class Recorder {
       && /^(0|false|off|no)$/i.test(String(process.env.AGENTBOX_REDACT).trim());
     const metaWithPolicy = { ...meta, redact: !redactOff };
     this.append('meta', metaWithPolicy); // event 0
+    this.flush(); // make the session discoverable immediately
+  }
+
+  flush() {
+    if (this.flushTimer) {
+      clearTimeout(this.flushTimer);
+      this.flushTimer = null;
+    }
+    if (!this.pendingBytes) return;
+    fs.writeSync(this.fd, this.pending.join(''));
+    this.pending = [];
+    this.pendingBytes = 0;
   }
 
   append(type, data) {
@@ -48,36 +64,57 @@ class Recorder {
     const i = this.i++;
     const hash = eventHash(this.prev, i, t, type, scrubbed);
     const line = JSON.stringify({ i, t, type, data: scrubbed, prev: this.prev, hash });
-    fs.writeSync(this.fd, line + '\n');
+    const record = line + '\n';
+    this.pending.push(record);
+    this.pendingBytes += Buffer.byteLength(record);
+    if (this.pendingBytes >= 64 * 1024) this.flush();
+    else if (!this.flushTimer) {
+      this.flushTimer = setTimeout(() => this.flush(), 25);
+      this.flushTimer.unref();
+    }
     this.prev = hash;
     return { i, t, type, data: scrubbed, hash, redactions: count };
   }
 
   close() {
+    this.flush();
     try { fs.closeSync(this.fd); } catch { /* already closed */ }
   }
 }
 
 /** Parse a session file into events (tolerates corrupt lines). */
 function loadEvents(file) {
-  let text;
+  let fd;
   try {
-    text = fs.readFileSync(file, 'utf8');
+    fd = fs.openSync(file, 'r');
   } catch (e) {
     return { events: [], corrupt: { line: 0, error: e.message } };
   }
   const events = [];
-  const lines = text.split('\n');
-  for (let n = 0; n < lines.length; n++) {
-    const line = lines[n];
-    if (!line.trim()) continue;
-    let ev;
-    try {
-      ev = JSON.parse(line);
-    } catch (e) {
-      return { events, corrupt: { line: n, error: e.message } };
+  const chunk = Buffer.allocUnsafe(64 * 1024);
+  let carry = Buffer.alloc(0);
+  let lineNo = 0;
+  try {
+    for (;;) {
+      const bytes = fs.readSync(fd, chunk, 0, chunk.length, null);
+      if (!bytes) break;
+      const data = carry.length ? Buffer.concat([carry, chunk.subarray(0, bytes)]) : chunk.subarray(0, bytes);
+      let start = 0;
+      for (let i = 0; i < data.length; i++) {
+        if (data[i] !== 10) continue;
+        const line = data.subarray(start, i).toString('utf8').trim();
+        if (line) events.push(JSON.parse(line));
+        lineNo += 1;
+        start = i + 1;
+      }
+      carry = start < data.length ? Buffer.from(data.subarray(start)) : Buffer.alloc(0);
     }
-    events.push(ev);
+    const tail = carry.toString('utf8').trim();
+    if (tail) events.push(JSON.parse(tail));
+  } catch (e) {
+    return { events, corrupt: { line: lineNo, error: e.message } };
+  } finally {
+    fs.closeSync(fd);
   }
   return { events, corrupt: null };
 }
@@ -112,20 +149,38 @@ function verifyChain(file) {
  * null only when the file is missing or empty.
  */
 function lastEvent(file) {
-  let text;
+  let fd;
   try {
-    text = fs.readFileSync(file, 'utf8');
+    fd = fs.openSync(file, 'r');
   } catch (e) {
     if (e.code === 'ENOENT') return null;
     throw e;
   }
-  const lines = text.split('\n');
-  for (let n = lines.length - 1; n >= 0; n--) {
-    const line = lines[n].trim();
-    if (!line) continue;
-    return JSON.parse(line); // throws on corruption — caller decides
+  try {
+    const size = fs.fstatSync(fd).size;
+    const chunks = [];
+    let end = size;
+    let foundNewline = false;
+    while (end > 0 && !foundNewline) {
+      const start = Math.max(0, end - 4096);
+      const buf = Buffer.allocUnsafe(end - start);
+      fs.readSync(fd, buf, 0, buf.length, start);
+      chunks.unshift(buf);
+      const combined = Buffer.concat(chunks);
+      let last = combined.length - 1;
+      while (last >= 0 && (combined[last] === 10 || combined[last] === 13 || combined[last] === 32 || combined[last] === 9)) last--;
+      const nl = combined.lastIndexOf(10, last);
+      if (nl >= 0 || start === 0) {
+        foundNewline = true;
+        const line = combined.subarray(nl + 1, last + 1).toString('utf8');
+        return line ? JSON.parse(line) : null;
+      }
+      end = start;
+    }
+    return null;
+  } finally {
+    fs.closeSync(fd);
   }
-  return null;
 }
 
 /**
@@ -171,8 +226,8 @@ function withFileLock(file, fn) {
         if (Date.now() - fs.statSync(lock).mtimeMs > 3000) { fs.unlinkSync(lock); continue; }
       } catch { /* vanished — retry */ }
       if (Date.now() > deadline) break;
-      const until = Date.now() + 25; // tiny busy-sleep; hooks are millisecond-scale
-      while (Date.now() < until) { /* spin */ }
+      // Synchronous hooks still need to wait, but sleeping avoids burning a core.
+      Atomics.wait(LOCK_SLEEP, 0, 0, 25);
     }
   }
   try {

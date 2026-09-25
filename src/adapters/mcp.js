@@ -42,23 +42,38 @@ function slim(v, cap) {
 /** Split a byte stream into complete lines (MCP stdio = 1 JSON-RPC msg/line). */
 class LineSplitter {
   constructor(onLine, onFlush) {
-    this.buf = '';
+    this.parts = [];
+    this.length = 0;
     this.onLine = onLine;
     this.onFlush = onFlush;
   }
 
   push(chunk) {
-    this.buf += chunk.toString('utf8');
+    const data = chunk.toString('utf8');
+    let start = 0;
     let idx;
-    while ((idx = this.buf.indexOf('\n')) !== -1) {
-      const line = this.buf.slice(0, idx).replace(/\r$/, '');
-      this.buf = this.buf.slice(idx + 1);
+    while ((idx = data.indexOf('\n', start)) !== -1) {
+      const part = data.slice(start, idx);
+      const line = (this.parts.length ? this.parts.join('') + part : part).replace(/\r$/, '');
+      this.parts = [];
+      this.length = 0;
       if (line) this.onLine(line);
+      start = idx + 1;
+    }
+    if (start < data.length) {
+      const rest = data.slice(start);
+      this.parts.push(rest);
+      this.length += rest.length;
     }
   }
 
   flush() {
-    if (this.buf.trim()) { if (this.onFlush) this.onFlush(this.buf.replace(/\r$/, '')); this.buf = ''; }
+    if (this.length) {
+      const rest = this.parts.join('');
+      if (rest.trim() && this.onFlush) this.onFlush(rest.replace(/\r$/, ''));
+      this.parts = [];
+      this.length = 0;
+    }
   }
 }
 

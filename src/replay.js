@@ -158,6 +158,8 @@ function replayTui(file, events, opts = {}) {
   let playing = true;
   let speedIdx = 2;       // 4x default — watching paint dry is not a feature
   let lastFrame = Date.now();
+  let markerWidth = -1;
+  let markers = [];
 
   const name = (meta && meta.data && meta.data.name) || 'session';
   const cols = () => (stdout.columns || 100);
@@ -213,20 +215,28 @@ function replayTui(file, events, opts = {}) {
       if (x < filled) bar.push(`${CYAN}█${RESET}`);
       else bar.push(`${DIM}░${RESET}`);
     }
-    // markers over the bar
-    for (const ev of events) {
-      const k = evKind(ev);
-      let mark = null;
-      let color = null;
-      if (k === 'tool' || k === 'tool_call') { mark = '▲'; color = ORANGE; }
-      else if (k === 'cmd') { mark = '$'; color = GREEN; }
-      else if (k === 'file') { mark = '✎'; color = MAGENTA; }
-      else if (k === 'in' || k === 'prompt') { mark = 'i'; color = CYAN; }
-      else if (k === 'mcp_msg') { mark = '⇄'; color = CYAN; }
-      if (mark) {
-        const p = Math.min(barW - 1, Math.floor(((ev.t - t0) / dur) * barW));
-        bar[p] = `${color}${mark}${p > filled ? DIM : CYAN}`;
+    // Marker positions only depend on terminal width, not playback time.
+    if (markerWidth !== barW) {
+      markerWidth = barW;
+      markers = new Array(barW);
+      for (const ev of events) {
+        const k = evKind(ev);
+        let mark = null;
+        let color = null;
+        if (k === 'tool' || k === 'tool_call') { mark = '▲'; color = ORANGE; }
+        else if (k === 'cmd') { mark = '$'; color = GREEN; }
+        else if (k === 'file') { mark = '✎'; color = MAGENTA; }
+        else if (k === 'in' || k === 'prompt') { mark = 'i'; color = CYAN; }
+        else if (k === 'mcp_msg') { mark = '⇄'; color = CYAN; }
+        if (mark) {
+          const p = Math.min(barW - 1, Math.floor(((ev.t - t0) / dur) * barW));
+          markers[p] = { mark, color };
+        }
       }
+    }
+    for (let p = 0; p < markers.length; p++) {
+      const marker = markers[p];
+      if (marker) bar[p] = `${marker.color}${marker.mark}${p > filled ? DIM : CYAN}`;
     }
     const speed = SPEEDS[speedIdx];
     buf.push(`  [${bar.join('')}]  ${BOLD}${mmss(vTime)}${RESET} ${DIM}/ ${mmss(dur)}${RESET}  ${DIM}· ${speed}x · ${cur + 1}/${events.length} events${RESET}`);

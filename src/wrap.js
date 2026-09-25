@@ -50,16 +50,26 @@ class LineRecorder {
   constructor(recorder, stream) {
     this.rec = recorder;
     this.stream = stream;
-    this.buf = '';
+    this.parts = [];
+    this.length = 0;
   }
 
   push(chunk) {
-    this.buf += chunk;
+    const data = String(chunk);
+    let start = 0;
     let idx;
-    while ((idx = this.buf.indexOf('\n')) !== -1) {
-      const line = this.buf.slice(0, idx);
-      this.buf = this.buf.slice(idx + 1);
+    while ((idx = data.indexOf('\n', start)) !== -1) {
+      const part = data.slice(start, idx);
+      const line = this.parts.length ? this.parts.join('') + part : part;
+      this.parts = [];
+      this.length = 0;
       this.emit(line);
+      start = idx + 1;
+    }
+    if (start < data.length) {
+      const rest = data.slice(start);
+      this.parts.push(rest);
+      this.length += rest.length;
     }
   }
 
@@ -72,9 +82,10 @@ class LineRecorder {
   }
 
   flush() {
-    if (this.buf.length) {
-      this.emit(this.buf);
-      this.buf = '';
+    if (this.length) {
+      this.emit(this.parts.join(''));
+      this.parts = [];
+      this.length = 0;
     }
   }
 }

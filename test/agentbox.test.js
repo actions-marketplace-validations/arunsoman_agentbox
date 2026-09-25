@@ -4,7 +4,7 @@ const assert = require('node:assert');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
-const { Recorder, verifyChain, eventHash, GENESIS } = require('../src/chain');
+const { Recorder, verifyChain, eventHash, GENESIS, lastEvent, loadEvents } = require('../src/chain');
 const { classifyLine, summarize } = require('../src/parse');
 
 function tmpdir() {
@@ -47,6 +47,29 @@ test('hash chain: tampering is detected', () => {
   assert.match(res.reason, /event 1/);
 });
 
+test('chain: tail reader handles records larger than its read window', () => {
+  const dir = tmpdir();
+  const file = path.join(dir, 'large-tail.jsonl');
+  const rec = new Recorder(file, { name: 'tail', cmd: 'x' });
+  rec.append('out', { text: 'z'.repeat(12 * 1024) });
+  rec.close();
+  const tail = lastEvent(file);
+  assert.equal(tail.i, 1);
+  assert.equal(tail.data.text.length, 12 * 1024);
+});
+
+test('chain: streaming loader reports a corrupt line and keeps its prefix', () => {
+  const dir = tmpdir();
+  const file = path.join(dir, 'corrupt.jsonl');
+  const rec = new Recorder(file, { name: 'stream', cmd: 'x' });
+  rec.append('out', { text: 'ok' });
+  rec.close();
+  fs.appendFileSync(file, '{broken json}\n');
+  const loaded = loadEvents(file);
+  assert.equal(loaded.events.length, 2);
+  assert.equal(loaded.corrupt.line, 2);
+});
+
 test('classifyLine: tool, cmd, file, net, plain', () => {
   assert.equal(classifyLine('[TOOL] bash("ls")').kind, 'tool');
   assert.equal(classifyLine('$ npm test -- --ci').kind, 'cmd');
@@ -54,6 +77,15 @@ test('classifyLine: tool, cmd, file, net, plain', () => {
   assert.deepEqual(classifyLine('edited config.yaml').detail, { op: 'edited', path: 'config.yaml' });
   assert.equal(classifyLine('see https://example.com/docs').kind, 'net');
   assert.equal(classifyLine('plain output line').kind, 'plain');
+});
+
+test('line recorder assembles a large line from many chunks', () => {
+  const { LineRecorder } = require('../src/wrap');
+  const seen = [];
+  const line = new LineRecorder({ append: (_type, data) => seen.push(data.text) }, 'stdout');
+  for (let i = 0; i < 2000; i++) line.push('abcd');
+  line.push('\nnext\n');
+  assert.deepEqual(seen, ['abcd'.repeat(2000), 'next']);
 });
 
 test('summarize: rolls up a session', () => {
