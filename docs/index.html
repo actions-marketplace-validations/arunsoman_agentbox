@@ -1,0 +1,308 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>MAYDAY — the black-box flight recorder for AI agents</title>
+<meta name="description" content="Your agents have root. Who's watching? MAYDAY records any AI agent session to a tamper-evident, 100% local black box. Replay it like security footage. Zero dependencies.">
+<style>
+  :root {
+    --bg: #07090d; --bg2: #0b0f15; --panel: #0d1117; --line: #1c2530;
+    --text: #c9d1d9; --dim: #56606c; --mint: #5eead4; --orange: #fb923c;
+    --green: #4ade80; --magenta: #e879f9; --cyan: #22d3ee; --red: #f87171;
+    --mono: ui-monospace, SFMono-Regular, "JetBrains Mono", Menlo, Consolas, monospace;
+  }
+  * { box-sizing: border-box; margin: 0; }
+  html { scroll-behavior: smooth; }
+  body { background: var(--bg); color: var(--text); font: 16px/1.6 var(--mono); }
+  a { color: var(--mint); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  .wrap { max-width: 1060px; margin: 0 auto; padding: 0 20px; }
+
+  nav { position: sticky; top: 0; z-index: 10; background: rgba(7,9,13,.85); backdrop-filter: blur(8px); border-bottom: 1px solid var(--line); }
+  nav .wrap { display: flex; align-items: center; gap: 22px; height: 56px; }
+  .logo { font-weight: 700; color: var(--text); font-size: 15px; }
+  .logo b { color: var(--mint); }
+  nav .links { margin-left: auto; display: flex; gap: 18px; font-size: 13px; }
+  nav .links a { color: var(--dim); }
+  nav .links a:hover { color: var(--mint); text-decoration: none; }
+
+  header { padding: 84px 0 60px; position: relative; overflow: hidden; }
+  header::before { content: ""; position: absolute; inset: 0; background:
+    radial-gradient(600px 300px at 70% 0%, rgba(94,234,212,.08), transparent),
+    radial-gradient(500px 260px at 20% 100%, rgba(251,146,60,.05), transparent); pointer-events: none; }
+  .kicker { color: var(--orange); font-size: 13px; letter-spacing: .12em; text-transform: uppercase; margin-bottom: 18px; }
+  h1 { font-size: clamp(30px, 5.4vw, 52px); line-height: 1.12; font-weight: 800; letter-spacing: -.01em; }
+  h1 .mint { color: var(--mint); }
+  .sub { color: var(--dim); max-width: 640px; margin: 22px 0 30px; font-size: 15px; }
+  .sub b { color: var(--text); }
+  .cta { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
+  .btn { display: inline-block; background: var(--mint); color: #042f2e; font-weight: 700; padding: 11px 20px; border-radius: 8px; font-size: 14px; }
+  .btn:hover { filter: brightness(1.08); text-decoration: none; }
+  .btn.ghost { background: transparent; color: var(--mint); border: 1px solid var(--line); }
+  .btn.ghost:hover { border-color: var(--mint); }
+  .badges { margin-top: 26px; display: flex; gap: 8px; flex-wrap: wrap; font-size: 12px; color: var(--dim); }
+  .badges span { border: 1px solid var(--line); border-radius: 99px; padding: 4px 12px; }
+  .badges b { color: var(--mint); font-weight: 600; }
+
+  .term { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; box-shadow: 0 30px 80px rgba(0,0,0,.5); }
+  .term .bar { display: flex; align-items: center; gap: 7px; padding: 10px 14px; background: #11161d; border-bottom: 1px solid var(--line); }
+  .dot { width: 11px; height: 11px; border-radius: 50%; }
+  .r{background:#ff5f56}.y{background:#ffbd2e}.g{background:#27c93f}
+  .term .bar .ttl { margin-left: 8px; color: var(--dim); font-size: 12px; }
+  .term pre { padding: 18px 20px; font-size: 13.5px; line-height: 1.55; overflow-x: auto; min-height: 320px; white-space: pre-wrap; }
+  .p1{color:var(--mint)}.p2{color:var(--orange)}.p3{color:var(--green)}.p4{color:var(--magenta)}.p5{color:var(--dim)}.p6{color:var(--cyan)}
+  .cursor { display:inline-block; width:8px; height:15px; background: var(--mint); vertical-align: -2px; animation: blink 1s steps(1) infinite; }
+  @keyframes blink { 50% { opacity: 0; } }
+
+  section { padding: 68px 0; border-top: 1px solid var(--line); }
+  section h2 { font-size: 26px; margin-bottom: 10px; letter-spacing: -.01em; }
+  section h2 .mint { color: var(--mint); }
+  .lead { color: var(--dim); max-width: 660px; margin-bottom: 36px; font-size: 14.5px; }
+
+  .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+  @media (max-width: 860px) { .grid { grid-template-columns: 1fr; } }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 22px; transition: border-color .2s, transform .2s; }
+  .card:hover { border-color: rgba(94,234,212,.4); transform: translateY(-2px); }
+  .card .ico { font-size: 20px; margin-bottom: 12px; display: block; }
+  .card h3 { font-size: 15px; margin-bottom: 8px; color: var(--text); }
+  .card p { font-size: 13px; color: var(--dim); }
+
+  .code { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; position: relative; }
+  .code pre { padding: 18px 20px; font-size: 13.5px; overflow-x: auto; }
+  .copy { position: absolute; top: 10px; right: 10px; background: var(--bg2); color: var(--dim); border: 1px solid var(--line); border-radius: 6px; font: 11px var(--mono); padding: 5px 10px; cursor: pointer; }
+  .copy:hover { color: var(--mint); border-color: var(--mint); }
+
+  .split { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; align-items: start; }
+  @media (max-width: 860px) { .split { grid-template-columns: 1fr; } }
+  .receipt { font-size: 12.5px; line-height: 1.5; }
+  .receipt .verdict { color: var(--orange); padding: 8px 2px 0; font-size: 12.5px; }
+
+  .steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+  @media (max-width: 860px) { .steps { grid-template-columns: 1fr; } }
+  .step { border-left: 2px solid var(--mint); padding: 4px 0 4px 18px; }
+  .step .n { color: var(--mint); font-size: 12px; letter-spacing: .1em; }
+  .step h3 { font-size: 15px; margin: 6px 0; }
+  .step p { font-size: 13px; color: var(--dim); }
+
+  table.faq { width: 100%; border-collapse: collapse; }
+  table.faq td { padding: 14px 14px 14px 0; border-top: 1px solid var(--line); vertical-align: top; font-size: 13.5px; }
+  table.faq td:first-child { color: var(--text); font-weight: 700; width: 34%; padding-right: 24px; }
+  table.faq td:last-child { color: var(--dim); }
+
+  footer { border-top: 1px solid var(--line); padding: 40px 0 60px; color: var(--dim); font-size: 13px; }
+  footer .big { color: var(--text); font-weight: 700; font-size: 15px; margin-bottom: 8px; }
+  footer .big b { color: var(--mint); }
+
+  .reveal { opacity: 0; transform: translateY(14px); transition: opacity .6s ease, transform .6s ease; }
+  .reveal.on { opacity: 1; transform: none; }
+</style>
+</head>
+<body>
+
+<nav>
+  <div class="wrap">
+    <span class="logo"><b>⬢</b> MAYDAY</span>
+    <div class="links">
+      <a href="#why">why</a>
+      <a href="#receipt">receipt</a>
+      <a href="#quickstart">quickstart</a>
+      <a href="#how">how</a>
+      <a href="https://github.com/arunsoman/mayday">github ↗</a>
+    </div>
+  </div>
+</nav>
+
+<header>
+  <div class="wrap">
+    <div class="kicker">// flight recorder for ai agents</div>
+    <h1>Your agents have root.<br><span class="mint">Who's watching?</span></h1>
+    <p class="sub">MAYDAY straps a <b>black box</b> to any command or AI agent — no SDK, no cloud, no code changes. Every tool call, file edit, and URL hit lands on a <b>tamper-evident tape</b> you can scrub like security footage. When your agent terrifies you at 2am, you'll have the evidence.</p>
+    <div class="cta">
+      <a class="btn" href="https://github.com/arunsoman/mayday">★ star on github</a>
+      <span class="btn ghost" id="copyNpx">npx mayday-cli demo — click to copy</span>
+    </div>
+    <div class="badges">
+      <span><b>0</b> dependencies</span>
+      <span><b>100%</b> local</span>
+      <span><b>0</b> telemetry</span>
+      <span>sha256 <b>hash chain</b></span>
+      <span>node <b>≥ 18</b></span>
+    </div>
+  </div>
+</header>
+
+<div class="wrap">
+  <div class="term">
+    <div class="bar"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span><span class="ttl">agent@prod — mayday wrap</span></div>
+    <pre id="typed"></pre>
+  </div>
+</div>
+
+<section id="why">
+  <div class="wrap">
+    <h2>The question nobody can answer<span class="mint"> yet</span></h2>
+    <p class="lead">2026 made software agent-native: agents run shells, edit files, hit APIs, ship to prod. Frameworks gave them memory, harnesses, tools. Nobody gave them a flight recorder. So when something breaks, you get a story — not evidence.</p>
+    <div class="grid">
+      <div class="card reveal"><span class="ico">📼</span><h3>Record anything</h3><p><code>mayday wrap -- anything</code>. Wraps the process, captures stdout/stderr/stdin, classifies tool calls, file ops, shell commands, URLs. Zero code changes in the wrapped program.</p></div>
+      <div class="card reveal"><span class="ico">🔐</span><h3>Tamper-evident tape</h3><p>Every event is sha256-chained, genesis to tip. Edit one character and <code>mayday verify</code> pins the exact forged event. Logs are opinions; chains are evidence.</p></div>
+      <div class="card reveal"><span class="ico">🧾</span><h3>Receipts, not dumps</h3><p>One page a human can scan in five seconds: tool calls, files touched, deletions flagged, URLs hit, and the deadpan metric — <i>humans consulted: 0</i>.</p></div>
+      <div class="card reveal"><span class="ico">🎬</span><h3>Replay like footage</h3><p>Interactive TUI scrubber with a timeline of markers. Play at 1–64×, jump to the exact moment, step event by event. Headless mode renders frames for CI and GIFs.</p></div>
+      <div class="card reveal"><span class="ico">✂️</span><h3>Shareable clips</h3><p>Export any time range as one self-contained HTML file. Drop it into a PR, an incident review, or the group chat. Works offline, forever.</p></div>
+      <div class="card reveal"><span class="ico">🤖</span><h3>GitHub-native</h3><p>Receipts as markdown in PR comments via the bundled Action. Sessions are plain JSONL in your repo — commit them, grep them, own them.</p></div>
+    </div>
+  </div>
+</section>
+
+<section id="receipt">
+  <div class="wrap">
+    <h2>Every flight ends with a receipt<span class="mint">.</span></h2>
+    <p class="lead">Real output from <code>mayday demo</code> — a scripted agent that ships to prod on a Friday with zero supervision.</p>
+    <div class="split">
+      <div class="term">
+        <div class="bar"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span><span class="ttl">mayday receipt</span></div>
+        <pre class="receipt"><span class="p1">           ⬢  M A Y D A Y   R E C E I P T</span>
+┌──────────────────────────────────────────────────┐
+│ session                 demo-deploy              │
+│ command                 node examples/fake-agen… │
+│ started                 2026-09-24 18:40:52      │
+│ duration                5.4s                     │
+│ exit code               <span class="p3">0  (clean landing)</span>       │
+├──────────────────────────────────────────────────┤
+│ tool calls              <span class="p2">7</span>                        │
+│   · bash("git status --s…                        │
+│   · write(src/deploy.sh …                        │
+│   … +5 more                                      │
+│ files touched           2 · 1 written · 1 edited │
+│   · src/deploy.sh       <span class="p4">wrote</span>                    │
+│   · config.yaml         <span class="p4">edited</span>                   │
+│ urls hit                <span class="p6">1</span>                        │
+│ output volume           808 B across 17 lines    │
+│ humans consulted        <span class="p2">0  (unsupervised flight)</span> │
+├──────────────────────────────────────────────────┤
+│ events recorded         19                       │
+│ tamper chain            <span class="p3">sha256 · intact</span>          │
+└──────────────────────────────────────────────────┘
+<span class="p2">uneventful flight. the best kind.</span></pre>
+      </div>
+      <div>
+        <div class="code"><button class="copy" data-copy="mayday wrap --name prod-deploy -- node agent.js">copy</button>
+<pre><span class="p5"># strap a black box to anything</span>
+<span class="p1">mayday</span> wrap --name prod-deploy <span class="p3">\</span>
+  -- node agent.js <span class="p6">"ship the release"</span>
+
+<span class="p5"># read the tape</span>
+<span class="p1">mayday</span> receipt      <span class="p5"># one-page summary</span>
+<span class="p1">mayday</span> replay      <span class="p5"># scrub the footage</span>
+<span class="p1">mayday</span> verify      <span class="p5"># chain intact?</span>
+<span class="p1">mayday</span> clip        <span class="p5"># share a moment</span></pre>
+        </div>
+        <p class="lead" style="margin-top:18px; font-size:13px;">The tape is plain JSONL in <code>./.mayday/sessions/</code> — grep it, diff it, commit it. It's yours, in your repo, offline by default.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="quickstart">
+  <div class="wrap">
+    <h2>Ten seconds to black box<span class="mint">.</span></h2>
+    <p class="lead">No install, no config, no account. If it runs in a terminal, it can wear a recorder.</p>
+    <div class="steps">
+      <div class="step reveal"><span class="n">STEP 01</span><h3>Watch the demo</h3><p>A scripted agent deploys to prod, edits config, emails the board. Mayday records everything, then prints the receipt.</p></div>
+      <div class="step reveal"><span class="n">STEP 02</span><h3>Pick your tap</h3><p>Wrap it: <code>mayday wrap -- anything</code>. Or skip the wrapper — <code>mayday init claude</code> hooks every Claude Code session passively, and <code>mayday mcp --</code> wire-taps any MCP server's JSON-RPC.</p></div>
+      <div class="step reveal"><span class="n">STEP 03</span><h3>Ship the receipt</h3><p>Add the GitHub Action and every agent-touched PR arrives with its flight receipt stapled to it.</p></div>
+    </div>
+    <div class="code" style="margin-top:22px"><button class="copy" data-copy='npx mayday-cli demo'>copy</button>
+<pre><span class="p6">npx</span> mayday-cli demo</pre>
+    </div>
+  </div>
+</section>
+
+<section id="how">
+  <div class="wrap">
+    <h2>Boring on purpose<span class="mint">.</span></h2>
+    <p class="lead">A flight recorder you can't audit would be a joke. MAYDAY is ~1,000 lines of auditable Node built-ins — <code>crypto</code>, <code>fs</code>, <code>child_process</code>. No <code>node_modules</code>. No supply chain. No phone home. Ever.</p>
+    <div class="split">
+      <div class="code"><pre><span class="p5">// every event on the tape:</span>
+{ <span class="p6">"i"</span>: 7, <span class="p6">"t"</span>: 1727172000000,
+  <span class="p6">"type"</span>: <span class="p3">"out"</span>,
+  <span class="p6">"data"</span>: { <span class="p6">"kind"</span>: <span class="p3">"tool"</span>,
+            <span class="p6">"text"</span>: <span class="p3">"[TOOL] bash(...)"</span> },
+  <span class="p6">"prev"</span>: <span class="p5">"9f2c…"</span>,
+  <span class="p6">"hash"</span>: <span class="p2">"e41b…"</span> }
+
+<span class="p5">// hash = sha256(prev ‖ i ‖ t ‖ type ‖ data)</span>
+<span class="p5">// edit anything → verify() fails at that index</span></pre></div>
+      <table class="faq">
+        <tr><td>Does it work with Claude Code / Cursor / OpenClaw?</td><td>Yes — anything in a terminal can be wrapped. First-class MCP &amp; Claude Code hooks are on the roadmap.</td></tr>
+        <tr><td>Isn't this just logging?</td><td>Logs are text files. This is chain of custody: hash-linked, verifiable, classified, replayable, shareable.</td></tr>
+        <tr><td>Why not a SaaS dashboard?</td><td>The answer to "can I trust my agent" shouldn't be "trust this vendor too." Your black box lives in your repo.</td></tr>
+        <tr><td>What does it cost?</td><td>MIT, free forever. The receipt for this decision says "humans consulted: 2."</td></tr>
+      </table>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <div class="big">If your agent has ever scared you at 2am, <b>you need a black box.</b></div>
+    <p>⬢ MAYDAY — MIT © 2026 · fly safe · <a href="https://github.com/arunsoman/mayday">github.com/arunsoman/mayday</a></p>
+  </div>
+</footer>
+
+<script>
+// typewriter for hero terminal
+const LINES = [
+  ['p5', '$ mayday wrap --name prod-deploy -- ./deploy-agent'],
+  ['p5', '⬢ mayday: black box on → recording to .mayday/sessions/2026-09-25T…-prod-deploy.jsonl'],
+  ['p2', '▲ [TOOL] bash("./deploy.sh --env=prod")'],
+  ['', '  ▸ building image… done'],
+  ['', '  ▸ pushing to registry… done'],
+  ['p3', '$ npm test -- --ci'],
+  ['', '  148 tests passed, 0 failed'],
+  ['p2', '▲ [TOOL] edit(config.yaml — max_users: 100 -> unlimited)'],
+  ['p2', '▲ [TOOL] email(board@bigcorp.com — "shipped on friday, yolo")'],
+  ['', 'deployment complete. no humans were consulted. ✅'],
+  ['p1', '⬢ 19 events · tamper chain intact · humans consulted: 0'],
+  ['p1', '⬢ try: mayday replay → scrub the footage like security cam'],
+];
+const typed = document.getElementById('typed');
+let li = 0, ci = 0, html = '';
+function tick() {
+  if (li >= LINES.length) { typed.innerHTML = html + '<span class="cursor"></span>'; return; }
+  const [cls, line] = LINES[li];
+  ci++;
+  if (ci > line.length) {
+    li++; ci = 0;
+    setTimeout(tick, 220);
+    return;
+  }
+  const partial = line.slice(0, ci);
+  html = LINES.slice(0, li).map(([c, l]) => `<span class="${c}">${esc(l)}</span>`).join('\n')
+       + (li < LINES.length ? '\n' + (cls ? `<span class="${cls}">${esc(partial)}</span>` : esc(partial)) : '');
+  typed.innerHTML = html + '<span class="cursor"></span>';
+  setTimeout(tick, line.length > 40 ? 8 : 16);
+}
+function esc(s){return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+tick();
+
+// copy buttons
+document.querySelectorAll('.copy').forEach(b => b.addEventListener('click', () => {
+  navigator.clipboard.writeText(b.dataset.copy || b.getAttribute('data-copy') || '').then(() => {
+    const t = b.textContent; b.textContent = 'copied ✓';
+    setTimeout(() => b.textContent = t, 1400);
+  });
+}));
+document.getElementById('copyNpx').addEventListener('click', function () {
+  navigator.clipboard.writeText('npx mayday-cli demo').then(() => {
+    const t = this.textContent; this.textContent = 'copied ✓ — paste it in a terminal';
+    setTimeout(() => this.textContent = t, 1600);
+  });
+});
+
+// scroll reveal
+const io = new IntersectionObserver((es) => es.forEach(e => e.isIntersecting && e.target.classList.add('on')), { threshold: .12 });
+document.querySelectorAll('.reveal').forEach(el => io.observe(el));
+</script>
+</body>
+</html>

@@ -1,0 +1,52 @@
+{
+  "name": "mayday-cli",
+  "version": "0.2.1",
+  "description": "⬢ The black-box flight recorder for AI agents. Zero deps, 100% local, tamper-evident.",
+  "license": "MIT",
+  "author": "you <me@me.me>",
+  "bin": {
+    "mayday": "bin/mayday.js"
+  },
+  "main": "src/cli.js",
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "test": "node --test test/",  
+    "demo": "node bin/mayday.js demo",
+    "preflight": "bash scripts/preflight.sh",
+    "preflight:quick": "bash scripts/preflight.sh --quick"
+  },
+  "files": [
+    "bin",
+    "src",
+    "examples",
+    "docs",
+    "action.yml",
+    "README.md",
+    "LICENSE",
+    "scripts"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/arunsoman/mayday.git"
+  },
+  "bugs": {
+    "url": "https://github.com/arunsoman/mayday/issues"
+  },
+  "homepage": "https://github.com/arunsoman/mayday#readme",
+  "keywords": [
+    "ai",
+    "agents",
+    "cli",
+    "security",
+    "observability",
+    "audit",
+    "flight-recorder",
+    "black-box",
+    "local-first",
+    "mcp",
+    "claude",
+    "devtools"
+  ]
+}

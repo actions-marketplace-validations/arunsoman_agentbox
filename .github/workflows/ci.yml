@@ -1,0 +1,36 @@
+name: CI
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    strategy:
+      matrix:
+        node: [18, 20, 22]
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+      - run: node --test test/
+      - name: e2e — demo produces a verifiable session
+        run: |
+          node bin/mayday.js demo
+          node bin/mayday.js verify
+      - name: tamper detection actually detects
+        run: |
+          FILE=$(ls -t .mayday/sessions/*.jsonl | head -1)
+          python3 - "$FILE" <<'EOF'
+          import json, sys
+          p = sys.argv[1]
+          lines = open(p).read().strip().split('\n')
+          ev = json.loads(lines[1]); ev['data']['text'] = 'forged by CI'
+          lines[1] = json.dumps(ev)
+          open(p, 'w').write('\n'.join(lines) + '\n')
+          EOF
+          if node bin/mayday.js verify; then echo "should have failed"; exit 1; fi
+          echo "✓ tamper detected as expected"

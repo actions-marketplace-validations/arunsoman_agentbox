@@ -1,0 +1,23 @@
+name: 🐛 Bug report
+description: Something in the black box is broken
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: Include the command you ran and the full output.
+    validations:
+      required: true
+  - type: input
+    id: session
+    attributes:
+      label: Session file
+      description: Attach the .jsonl if possible — the whole point of mayday is that it can't lie.
+  - type: input
+    id: env
+    attributes:
+      label: Environment
+      placeholder: macOS 15 / node 22 / terminal.app
+      validations:
+        required: true

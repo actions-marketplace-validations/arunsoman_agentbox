@@ -1,0 +1,50 @@
+name: 'MAYDAY receipt'
+description: 'Post a MAYDAY flight receipt as a PR comment for every AI-agent session recorded during the workflow.'
+branding:
+  icon: 'radio'
+  color: 'green'
+
+inputs:
+  session:
+    description: 'Path to a .jsonl session file (or glob-first match). Defaults to newest in ./.mayday/sessions.'
+    required: false
+  header:
+    description: 'Comment header'
+    required: false
+    default: '⬢ Agent flight receipt (recorded by [mayday](https://github.com/arunsoman/mayday))'
+
+runs:
+  using: 'composite'
+  steps:
+    - uses: actions/setup-node@v4
+      with:
+        node-version: 20
+
+    - name: Build receipt
+      id: receipt
+      shell: bash
+      run: |
+        SESSION="${{ inputs.session }}"
+        if [ -z "$SESSION" ]; then
+          SESSION=$(ls -t .mayday/sessions/*.jsonl 2>/dev/null | head -1 || true)
+        fi
+        if [ -z "$SESSION" ]; then
+          echo "no session found — did your agent run under 'mayday wrap'?" >&2
+          exit 1
+        fi
+        node "${{ github.action_path }}/bin/mayday.js" receipt "$SESSION" --md > mayday-receipt.md
+        echo "session=$SESSION" >> "$GITHUB_OUTPUT"
+
+    - name: Comment on PR
+      if: github.event_name == 'pull_request'
+      uses: actions/github-script@v7
+      with:
+        script: |
+          const fs = require('fs');
+          const body = `${{ inputs.header }}\n\n` + fs.readFileSync('mayday-receipt.md', 'utf8');
+          await github.rest.issues.createComment({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            issue_number: context.issue.number,
+            body
+          });
