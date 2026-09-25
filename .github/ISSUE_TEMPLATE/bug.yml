@@ -13,7 +13,7 @@ body:
     id: session
     attributes:
       label: Session file
-      description: Attach the .jsonl if possible — the whole point of mayday is that it can't lie.
+      description: Attach the .jsonl if possible — the whole point of agentbox is that it can't lie.
   - type: input
     id: env
     attributes:

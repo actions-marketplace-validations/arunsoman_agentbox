@@ -1,15 +1,15 @@
 'use strict';
 /**
- * mayday — redact.js
+ * agentbox — redact.js
  * Default-on secret scrubbing for the flight tape.
  *
  * Every string that is about to be written to a session file passes through
  * here. The hash chain commits to the *redacted* form, so the tape never
  * contains the original secret and is still tamper-evident.
  *
- * Disable:     MAYDAY_REDACT=0
- * Extra rules: MAYDAY_REDACT_EXTRA=pattern1|pattern2   (JS regex sources)
- * Project cfg: .mayday/config.json → { "redact": true, "redactPatterns": ["…"] }
+ * Disable:     AGENTBOX_REDACT=0
+ * Extra rules: AGENTBOX_REDACT_EXTRA=pattern1|pattern2   (JS regex sources)
+ * Project cfg: .agentbox/config.json → { "redact": true, "redactPatterns": ["…"] }
  *
  * Design rules:
  *   1. Deterministic — same input always yields the same redacted output
@@ -78,7 +78,7 @@ let _cache = null; // { enabled, patterns: [{name, re}] }
 function loadConfig(cwd) {
   const root = cwd || process.cwd();
   try {
-    const cfgPath = path.join(root, '.mayday', 'config.json');
+    const cfgPath = path.join(root, '.agentbox', 'config.json');
     if (fs.existsSync(cfgPath)) {
       return JSON.parse(fs.readFileSync(cfgPath, 'utf8')) || {};
     }
@@ -93,14 +93,14 @@ function loadConfig(cwd) {
 function resolve(cwd) {
   if (_cache) return _cache;
 
-  const env = process.env.MAYDAY_REDACT;
+  const env = process.env.AGENTBOX_REDACT;
   const cfg = loadConfig(cwd);
   // explicit false / "0" / "off" / "false" disables; everything else is on
   let enabled = true;
   if (env != null && /^(0|false|off|no)$/i.test(String(env).trim())) enabled = false;
   if (cfg.redact === false) enabled = false;
   if (cfg.redact === true) enabled = true;
-  // MAYDAY_REDACT=1 forces on even if config said off
+  // AGENTBOX_REDACT=1 forces on even if config said off
   if (env != null && /^(1|true|on|yes)$/i.test(String(env).trim())) enabled = true;
 
   const patterns = BUILTIN.map((p) => ({ name: p.name, re: cloneRe(p.re) }));
@@ -108,8 +108,8 @@ function resolve(cwd) {
   // project-level extra patterns
   const extra = [];
   if (Array.isArray(cfg.redactPatterns)) extra.push(...cfg.redactPatterns);
-  if (process.env.MAYDAY_REDACT_EXTRA) {
-    extra.push(...String(process.env.MAYDAY_REDACT_EXTRA).split('|').map((s) => s.trim()).filter(Boolean));
+  if (process.env.AGENTBOX_REDACT_EXTRA) {
+    extra.push(...String(process.env.AGENTBOX_REDACT_EXTRA).split('|').map((s) => s.trim()).filter(Boolean));
   }
   for (const src of extra) {
     try {

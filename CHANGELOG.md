@@ -7,16 +7,16 @@
   - Bearer headers, JWTs, PEM private keys
   - `password=` / `api_key=` / `"secret": "…"` style assignments
   - connection strings with embedded credentials
-- Disable with `MAYDAY_REDACT=0`; add patterns via `MAYDAY_REDACT_EXTRA` or `.mayday/config.json`
+- Disable with `AGENTBOX_REDACT=0`; add patterns via `AGENTBOX_REDACT_EXTRA` or `.agentbox/config.json`
 - Meta event records `redact: true|false` so the policy is self-describing
 - Hash chain commits to the *redacted* form — the original secret never lands on disk
 - Tests cover pattern hits, deep object walks, disable flag, and end-to-end wrap path
 
 ## 0.2.0 — passive mode (adapters)
 
-- **Claude Code hook adapter** — `mayday init claude` merges idempotent hooks into `.claude/settings.json` (`--local`, `--remove`); `mayday hook claude` records SessionStart / UserPromptSubmit / PreToolUse / PostToolUse / Notification / Stop / SessionEnd per Claude session
-  - engineered to never break a flight: exit 0 on any internal error, no stdout on the hot path, drop-instead-of-fork under lock contention, auto receipt on SessionEnd → `.mayday/receipts/`
-- **MCP wire tap** — `mayday mcp -- <server cmd>` runs any MCP server behind a transparent recording proxy (newline-delimited JSON-RPC passthrough); every `tools/call` is hash-chained with arguments, result, status and duration; `mayday init mcp` prints ready-to-paste configs for Claude Desktop / Cursor / Claude Code
+- **Claude Code hook adapter** — `agentbox init claude` merges idempotent hooks into `.claude/settings.json` (`--local`, `--remove`); `agentbox hook claude` records SessionStart / UserPromptSubmit / PreToolUse / PostToolUse / Notification / Stop / SessionEnd per Claude session
+  - engineered to never break a flight: exit 0 on any internal error, no stdout on the hot path, drop-instead-of-fork under lock contention, auto receipt on SessionEnd → `.agentbox/receipts/`
+- **MCP wire tap** — `agentbox mcp -- <server cmd>` runs any MCP server behind a transparent recording proxy (newline-delimited JSON-RPC passthrough); every `tools/call` is hash-chained with arguments, result, status and duration; `agentbox init mcp` prints ready-to-paste configs for Claude Desktop / Cursor / Claude Code
 - receipts + replay now understand structured events: `recorded via` row, agent turns, tool errors, human-readable tool labels (`Bash(npm test -- --ci)`), prompt details in markdown receipts
 - chain.js: cross-process append primitives (`lastEvent`, `appendToChain`, `withFileLock`) so short-lived hook processes can extend an existing chain safely
 - 15 tests (from 11): hook e2e incl. garbage-stdin resilience, MCP proxy e2e over real stdio, settings merge/uninstall idempotency

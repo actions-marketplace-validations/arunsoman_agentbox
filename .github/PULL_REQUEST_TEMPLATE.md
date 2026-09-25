@@ -5,6 +5,6 @@
 ## Checklist
 
 - [ ] `npm test` passes locally
-- [ ] No new runtime dependencies (hard rule — mayday stays zero-dep)
+- [ ] No new runtime dependencies (hard rule — agentbox stays zero-dep)
 - [ ] Docs/README updated if behavior changed
 - [ ] 100% local, zero telemetry preserved

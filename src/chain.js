@@ -1,6 +1,6 @@
 'use strict';
 /**
- * mayday — chain.js
+ * agentbox — chain.js
  * Tamper-evident, hash-chained event log (the "black box tape").
  *
  * Every event is a JSONL line:
@@ -35,8 +35,8 @@ class Recorder {
     fs.mkdirSync(path.dirname(file), { recursive: true });
     this.fd = fs.openSync(file, 'w');
     // stamp redaction policy into meta so the tape is self-describing
-    const redactOff = process.env.MAYDAY_REDACT != null
-      && /^(0|false|off|no)$/i.test(String(process.env.MAYDAY_REDACT).trim());
+    const redactOff = process.env.AGENTBOX_REDACT != null
+      && /^(0|false|off|no)$/i.test(String(process.env.AGENTBOX_REDACT).trim());
     const metaWithPolicy = { ...meta, redact: !redactOff };
     this.append('meta', metaWithPolicy); // event 0
   }
@@ -184,7 +184,7 @@ function withFileLock(file, fn) {
 
 /** Default sessions dir for a project. */
 function sessionsDir(cwd) {
-  return path.join(cwd || process.cwd(), '.mayday', 'sessions');
+  return path.join(cwd || process.cwd(), '.agentbox', 'sessions');
 }
 
 function newSessionFile(cwd, name) {

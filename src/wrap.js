@@ -1,7 +1,7 @@
 'use strict';
 /**
- * mayday — wrap.js
- * `mayday wrap -- <command>` : spawn the command with the black box on.
+ * agentbox — wrap.js
+ * `agentbox wrap -- <command>` : spawn the command with the black box on.
  * Streams stdout/stderr through live (so the human still sees everything)
  * while recording line-by-line, classified events into the hash chain.
  * 100% local. No SDK changes needed in the wrapped program.
@@ -77,17 +77,17 @@ function wrap(commandArgs, opts = {}) {
       host: os.hostname(),
       platform: `${os.platform()} ${os.arch()}`,
       node: process.version,
-      mayday: VERSION,
+      agentbox: VERSION,
       pid: process.pid,
     });
 
     if (!opts.quiet) {
-      process.stderr.write(`${DIM}${CYAN}⬢ mayday${RESET}${DIM}: black box on → recording to ${file}${RESET}\n`);
+      process.stderr.write(`${DIM}${CYAN}⬢ agentbox${RESET}${DIM}: black box on → recording to ${file}${RESET}\n`);
     }
 
     const child = spawn(commandArgs[0], commandArgs.slice(1), {
       stdio: ['pipe', 'pipe', 'pipe'],
-      env: { ...process.env, MAYDAY: '1', MAYDAY_SESSION: file },
+      env: { ...process.env, AGENTBOX: '1', AGENTBOX_SESSION: file },
       cwd: opts.cwd || process.cwd(),
     });
 
@@ -107,11 +107,11 @@ function wrap(commandArgs, opts = {}) {
     });
 
     // stdin: forward + record (raw mode when TTY so we see every keystroke).
-    // Non-TTY stdin is opt-in via MAYDAY_PIPE_STDIN=1 — an open, silent pipe
+    // Non-TTY stdin is opt-in via AGENTBOX_PIPE_STDIN=1 — an open, silent pipe
     // would otherwise keep this process alive forever.
     //
     // Critical: always detach stdin on child close/error. Leaving a resumed
-    // stdin listener is what made `mayday demo` / `wrap` hang the parent
+    // stdin listener is what made `agentbox demo` / `wrap` hang the parent
     // process after the agent exited (preflight, CI, scripts).
     let stdinAttached = false;
     const onStdinData = (d) => {
@@ -135,7 +135,7 @@ function wrap(commandArgs, opts = {}) {
         process.stdin.on('data', onStdinData);
         process.stdin.resume();
         stdinAttached = true;
-      } else if (process.env.MAYDAY_PIPE_STDIN === '1' && !process.stdin.readableEnded) {
+      } else if (process.env.AGENTBOX_PIPE_STDIN === '1' && !process.stdin.readableEnded) {
         process.stdin.on('data', onStdinData);
         stdinAttached = true;
       }
@@ -155,7 +155,7 @@ function wrap(commandArgs, opts = {}) {
 
     child.on('error', (e) => {
       detachStdin();
-      rec.append('out', { stream: 'stderr', kind: 'plain', text: `mayday: failed to spawn: ${e.message}` });
+      rec.append('out', { stream: 'stderr', kind: 'plain', text: `agentbox: failed to spawn: ${e.message}` });
       outR.flush(); errR.flush();
       rec.append('exit', { code: 127, durationMs: Date.now() - t0, spawnError: e.message });
       rec.close();
@@ -170,7 +170,7 @@ function wrap(commandArgs, opts = {}) {
       rec.append('exit', { code: code == null ? (signal ? -1 : 1) : code, durationMs, signal });
       rec.close();
       if (!opts.quiet) {
-        process.stderr.write(`${DIM}${CYAN}⬢ mayday${RESET}${DIM}: ${rec.i} events recorded · ${durationMs} ms · try: mayday receipt${RESET}\n`);
+        process.stderr.write(`${DIM}${CYAN}⬢ agentbox${RESET}${DIM}: ${rec.i} events recorded · ${durationMs} ms · try: agentbox receipt${RESET}\n`);
       }
       resolve({ file, exitCode: code == null ? 1 : code, events: rec.i });
     });

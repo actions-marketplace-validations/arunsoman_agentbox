@@ -1,8 +1,8 @@
 'use strict';
 /**
- * mayday — cli.js
+ * agentbox — cli.js
  * Zero-dependency argv router. Every command works offline, no accounts,
- * no telemetry. Sessions live in ./.mayday/sessions/ next to your repo.
+ * no telemetry. Sessions live in ./.agentbox/sessions/ next to your repo.
  */
 const fs = require('fs');
 const path = require('path');
@@ -23,9 +23,9 @@ const RED = '\x1b[31m';
 const RESET = '\x1b[0m';
 
 const HELP = `
-${CYAN}${BOLD}⬢ mayday v${VERSION}${RESET} — the black-box flight recorder for AI agents
+${CYAN}${BOLD}⬢ agentbox v${VERSION}${RESET} — the black-box flight recorder for AI agents
 
-${BOLD}usage${RESET}: mayday <command> [options]
+${BOLD}usage${RESET}: agentbox <command> [options]
 
   ${BOLD}wrap${RESET} [--name n] -- <cmd…>    record a command/agent session (black box on)
   ${BOLD}init${RESET} claude [--local]        passive mode: claude code hooks (one command)
@@ -40,7 +40,7 @@ ${BOLD}usage${RESET}: mayday <command> [options]
   ${BOLD}verify${RESET} [file]               check the tamper-evident sha256 hash chain
   ${BOLD}help${RESET}                        show this help
 
-${DIM}sessions live in ./.mayday/sessions/ · zero deps · 100% local · no telemetry
+${DIM}sessions live in ./.agentbox/sessions/ · zero deps · 100% local · no telemetry
 your agent has root. who's watching?${RESET}
 `;
 
@@ -82,10 +82,10 @@ function resolveSession(fileArg) {
 function cmdList() {
   const files = findSessions();
   if (!files.length) {
-    process.stdout.write(`${DIM}no sessions yet — try: ${RESET}mayday demo\n`);
+    process.stdout.write(`${DIM}no sessions yet — try: ${RESET}agentbox demo\n`);
     return;
   }
-  process.stdout.write(`${BOLD}⬢ recorded sessions${RESET} ${DIM}(.mayday/sessions/)${RESET}\n\n`);
+  process.stdout.write(`${BOLD}⬢ recorded sessions${RESET} ${DIM}(.agentbox/sessions/)${RESET}\n\n`);
   for (const f of files) {
     let meta = null;
     let dur = '?';
@@ -102,7 +102,7 @@ function cmdList() {
     const ok = '✓';
     process.stdout.write(`  ${DIM}${path.basename(f)}${RESET}\n    ${CYAN}${BOLD}${meta || '?'}${RESET}  ·  ${n} events · ${dur} · exit ${code === '0' ? GREEN + '0 ✓' : RED + code + RESET} · chain ${GREEN}${ok}${RESET}\n`);
   }
-  process.stdout.write(`\n${DIM}replay one: mayday replay <file>${RESET}\n`);
+  process.stdout.write(`\n${DIM}replay one: agentbox replay <file>${RESET}\n`);
 }
 
 function cmdVerify(fileArg) {
@@ -122,13 +122,13 @@ function cmdDemo() {
   // prefer a repo-relative path in receipts when run from inside the repo
   const rel = path.relative(process.cwd(), demoScript);
   const demoArg = rel && !rel.startsWith('..') ? rel : demoScript;
-  process.stdout.write(`${CYAN}${BOLD}⬢ mayday demo${RESET} — strapping a black box to a scripted agent\n\n`);
+  process.stdout.write(`${CYAN}${BOLD}⬢ agentbox demo${RESET} — strapping a black box to a scripted agent\n\n`);
   wrap(['node', demoArg], { name: 'demo-deploy' })
     .then(({ file, exitCode }) => {
       process.stdout.write('\n');
       receipt(file, { format: 'text' });
-      process.stdout.write(`  ${DIM}now try:${RESET}   mayday replay ${path.basename(file)}\n`);
-      process.stdout.write(`  ${DIM}share a clip:${RESET} mayday clip ${path.basename(file)}\n`);
+      process.stdout.write(`  ${DIM}now try:${RESET}   agentbox replay ${path.basename(file)}\n`);
+      process.stdout.write(`  ${DIM}share a clip:${RESET} agentbox clip ${path.basename(file)}\n`);
       // explicit exit — wrap used to leave stdin resumed, which kept the
       // process alive after the agent finished (preflight / CI hang).
       process.exit(exitCode !== 0 ? (exitCode > 0 ? exitCode : 1) : 0);
@@ -150,10 +150,10 @@ function main() {
       const cmdArgs = flags._.length && fs.existsSync(flags._[0]) === false && flags['--'] === undefined
         ? flags._
         : flags._;
-      // `mayday wrap --name x -- node agent.js` → after flag parse, remaining positional args ARE the command
+      // `agentbox wrap --name x -- node agent.js` → after flag parse, remaining positional args ARE the command
       const target = cmdArgs.length ? cmdArgs : null;
       if (!target) {
-        process.stderr.write('usage: mayday wrap [--name n] -- <command> [args…]\n');
+        process.stderr.write('usage: agentbox wrap [--name n] -- <command> [args…]\n');
         process.exitCode = 1;
         return;
       }
@@ -177,7 +177,7 @@ function main() {
       const dd = raw.indexOf('--');
       const serverArgs = dd >= 0 ? raw.slice(dd + 1) : flags._;
       if (!serverArgs.length) {
-        process.stderr.write('usage: mayday mcp [--name n] -- <server command> [args…]\nexample: mayday mcp -- npx -y @modelcontextprotocol/server-everything\n');
+        process.stderr.write('usage: agentbox mcp [--name n] -- <server command> [args…]\nexample: agentbox mcp -- npx -y @modelcontextprotocol/server-everything\n');
         process.exitCode = 1;
         return;
       }
@@ -199,7 +199,7 @@ function main() {
         initMcp(serverArgs);
         return;
       }
-      process.stderr.write('usage: mayday init claude [--local] [--remove]\n       mayday init mcp -- <server command>\n');
+      process.stderr.write('usage: agentbox init claude [--local] [--remove]\n       agentbox init mcp -- <server command>\n');
       process.exitCode = 1;
       return;
     }
@@ -207,17 +207,17 @@ function main() {
     case 'verify': return cmdVerify(fileArg);
     case 'receipt': {
       const file = resolveSession(fileArg);
-      if (!file) { process.stderr.write('no session file found — record one first: mayday demo\n'); process.exitCode = 1; return; }
+      if (!file) { process.stderr.write('no session file found — record one first: agentbox demo\n'); process.exitCode = 1; return; }
       const format = flags.json ? 'json' : (flags.md || flags.markdown ? 'markdown' : 'text');
       const r = receipt(file, { format, force: flags.force });
       if (r.ok && !flags.quiet && format === 'text') {
-        process.stdout.write(`  ${DIM}full tape:${RESET} mayday replay ${path.basename(file)}\n`);
+        process.stdout.write(`  ${DIM}full tape:${RESET} agentbox replay ${path.basename(file)}\n`);
       }
       return;
     }
     case 'clip': {
       const file = resolveSession(fileArg);
-      if (!file) { process.stderr.write('no session file found — record one first: mayday demo\n'); process.exitCode = 1; return; }
+      if (!file) { process.stderr.write('no session file found — record one first: agentbox demo\n'); process.exitCode = 1; return; }
       const out = clip(file, {
         from: flags.from != null ? Number(flags.from) : undefined,
         to: flags.to != null ? Number(flags.to) : undefined,
@@ -229,12 +229,12 @@ function main() {
     }
     case 'replay': {
       const file = resolveSession(fileArg);
-      if (!file) { process.stderr.write('no session file found — record one first: mayday demo\n'); process.exitCode = 1; return; }
+      if (!file) { process.stderr.write('no session file found — record one first: agentbox demo\n'); process.exitCode = 1; return; }
       replay(file, { headless: flags.headless, force: flags.force, tail: flags.tail ? Number(flags.tail) : undefined });
       return;
     }
     case 'version': case '--version': case '-v':
-      process.stdout.write(`mayday v${VERSION}\n`);
+      process.stdout.write(`agentbox v${VERSION}\n`);
       return;
     case 'help': case '--help': case '-h':
     default:

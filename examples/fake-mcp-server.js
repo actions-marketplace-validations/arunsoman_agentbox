@@ -1,9 +1,9 @@
 'use strict';
 /**
  * A minimal fake MCP server (stdio transport, newline-delimited JSON-RPC 2.0).
- * Used by the test suite and for trying `mayday mcp` without a real server:
+ * Used by the test suite and for trying `agentbox mcp` without a real server:
  *
- *   mayday mcp -- node examples/fake-mcp-server.js
+ *   agentbox mcp -- node examples/fake-mcp-server.js
  *
  * Tools:
  *   echo(text)  → echoes back

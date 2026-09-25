@@ -1,5 +1,7 @@
 node_modules/
 *.log
 .DS_Store
-.mayday/sessions/*.clip.html
+.agentbox/sessions/*.clip.html
 coverage/
+.agentbox/sessions/*.jsonl
+.mayday/sessions/*.jsonl

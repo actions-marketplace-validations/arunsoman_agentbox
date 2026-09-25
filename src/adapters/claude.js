@@ -1,10 +1,10 @@
 'use strict';
 /**
- * mayday — adapters/claude.js
+ * agentbox — adapters/claude.js
  * The Claude Code hook adapter: passive capture, no wrapper needed.
  *
- *   mayday init claude       # one command: wires hooks into .claude/settings.json
- *   mayday hook claude       # what every hook invocation runs (reads the
+ *   agentbox init claude       # one command: wires hooks into .claude/settings.json
+ *   agentbox hook claude       # what every hook invocation runs (reads the
  *                            # hook payload JSON from stdin, appends one
  *                            # hash-chained event, exits 0 — ALWAYS)
  *
@@ -14,7 +14,7 @@
  *   3. drop events under contention rather than fork the hash chain
  *   4. per-Claude-session file, deterministic name → zero state files
  *
- * Session mapping: claude session_id → .mayday/sessions/<stamp>-claude-<sid>.jsonl
+ * Session mapping: claude session_id → .agentbox/sessions/<stamp>-claude-<sid>.jsonl
  */
 const fs = require('fs');
 const os = require('os');
@@ -25,7 +25,7 @@ const {
 const { summarize, verdict } = require('../parse');
 const { markdownReceipt } = require('../receipt');
 
-// The hook events mayday manages in settings.json. Entries are recognized
+// The hook events agentbox manages in settings.json. Entries are recognized
 // for idempotent re-init / --remove by this marker inside the command string.
 const HOOK_MARKER = 'hook claude';
 const MANAGED_EVENTS = [
@@ -79,16 +79,16 @@ function toolResponseIsError(resp) {
   return typeof resp.error === 'string' && resp.error.length > 0;
 }
 
-/** Write the auto receipt on SessionEnd (`.mayday/receipts/<session>.md`). */
+/** Write the auto receipt on SessionEnd (`.agentbox/receipts/<session>.md`). */
 function autoReceipt(cwd, file) {
-  if (process.env.MAYDAY_HOOKS_RECEIPT === '0') return;
+  if (process.env.AGENTBOX_HOOKS_RECEIPT === '0') return;
   const res = verifyChain(file);
   if (!res.ok) return;
   const stats = summarize(res.events);
-  const dir = path.join(cwd, '.mayday', 'receipts');
+  const dir = path.join(cwd, '.agentbox', 'receipts');
   fs.mkdirSync(dir, { recursive: true });
   const md = [
-    '# ⬢ mayday — flight receipt (auto-generated on session end)',
+    '# ⬢ agentbox — flight receipt (auto-generated on session end)',
     '',
     markdownReceipt(stats, true),
     '',
@@ -122,7 +122,7 @@ function recordHookEvent(ev) {
         user: os.userInfo().username,
         host: os.hostname(),
         platform: `${process.platform} ${process.arch}`,
-        mayday: VERSION,
+        agentbox: VERSION,
         pid: process.pid,
       });
     }
@@ -184,15 +184,15 @@ function recordHookEvent(ev) {
   });
 }
 
-/** `mayday hook claude` — read payload, record, exit 0. Always. */
+/** `agentbox hook claude` — read payload, record, exit 0. Always. */
 async function runHook() {
   let ev = {};
   try { ev = JSON.parse((await readStdin()) || '{}'); } catch { ev = { hook_event_name: 'unknown-event' }; }
   try {
     recordHookEvent(ev);
   } catch (e) {
-    if (process.env.MAYDAY_DEBUG) {
-      process.stderr.write(`mayday hook: swallowed error: ${e && e.message}\n`);
+    if (process.env.AGENTBOX_DEBUG) {
+      process.stderr.write(`agentbox hook: swallowed error: ${e && e.message}\n`);
     }
   }
   process.exit(0); // rule 1: the flight always continues
@@ -200,7 +200,7 @@ async function runHook() {
 
 /** Absolute, space-safe command string that lands inside settings.json hooks. */
 function hookCommand() {
-  const bin = path.join(__dirname, '..', '..', 'bin', 'mayday.js');
+  const bin = path.join(__dirname, '..', '..', 'bin', 'agentbox.js');
   return `node "${bin}" ${HOOK_MARKER}`;
 }
 
@@ -213,8 +213,8 @@ function entryIsOurs(entry) {
 }
 
 /**
- * `mayday init claude [--local] [--remove]`
- * Merge mayday hooks into .claude/settings.json (idempotent), or strip them.
+ * `agentbox init claude [--local] [--remove]`
+ * Merge agentbox hooks into .claude/settings.json (idempotent), or strip them.
  * Returns { file, changed, events }.
  */
 function initClaude(opts = {}) {
@@ -223,7 +223,7 @@ function initClaude(opts = {}) {
   let settings = {};
   if (existed) {
     try { settings = JSON.parse(fs.readFileSync(file, 'utf8')); } catch (e) {
-      process.stderr.write(`⬢ mayday: cannot parse ${file} — ${e.message}\nfix it first, or use --local for a separate file\n`);
+      process.stderr.write(`⬢ agentbox: cannot parse ${file} — ${e.message}\nfix it first, or use --local for a separate file\n`);
       process.exitCode = 1;
       return { file, changed: false };
     }
@@ -244,8 +244,8 @@ function initClaude(opts = {}) {
     if (!Object.keys(settings.hooks).length) delete settings.hooks;
   } else {
     // first-time safety net: never clobber a hand-written settings file silently
-    if (existed && !fs.existsSync(`${file}.mayday-backup`)) {
-      try { fs.copyFileSync(file, `${file}.mayday-backup`); } catch { /* best effort */ }
+    if (existed && !fs.existsSync(`${file}.agentbox-backup`)) {
+      try { fs.copyFileSync(file, `${file}.agentbox-backup`); } catch { /* best effort */ }
     }
     const cmd = hookCommand();
     for (const event of MANAGED_EVENTS) {
@@ -264,25 +264,25 @@ function initClaude(opts = {}) {
 
   const CYAN = '\x1b[36m'; const BOLD = '\x1b[1m'; const DIM = '\x1b[2m'; const GREEN = '\x1b[32m'; const RESET = '\x1b[0m';
   if (opts.remove) {
-    process.stdout.write(`${CYAN}${BOLD}⬢ mayday${RESET}: removed ${changed} hook entr${changed === 1 ? 'y' : 'ies'} from ${DIM}${file}${RESET}\n`);
+    process.stdout.write(`${CYAN}${BOLD}⬢ agentbox${RESET}: removed ${changed} hook entr${changed === 1 ? 'y' : 'ies'} from ${DIM}${file}${RESET}\n`);
   } else if (changed === 0) {
-    process.stdout.write(`${CYAN}${BOLD}⬢ mayday${RESET}: hooks already installed in ${DIM}${file}${RESET} ${GREEN}(nothing to do)${RESET}\n`);
+    process.stdout.write(`${CYAN}${BOLD}⬢ agentbox${RESET}: hooks already installed in ${DIM}${file}${RESET} ${GREEN}(nothing to do)${RESET}\n`);
   } else {
-    process.stdout.write(`${CYAN}${BOLD}⬢ mayday${RESET}: passive mode ON — ${changed} hooks → ${DIM}${file}${RESET}\n`);
-    if (existed) process.stdout.write(`${DIM}  original backed up to ${file}.mayday-backup${RESET}\n`);
+    process.stdout.write(`${CYAN}${BOLD}⬢ agentbox${RESET}: passive mode ON — ${changed} hooks → ${DIM}${file}${RESET}\n`);
+    if (existed) process.stdout.write(`${DIM}  original backed up to ${file}.agentbox-backup${RESET}\n`);
     process.stdout.write(`
-  ${BOLD}what gets recorded${RESET} (per claude session → .mayday/sessions/):
+  ${BOLD}what gets recorded${RESET} (per claude session → .agentbox/sessions/):
     SessionStart      flight opened
     UserPromptSubmit  every prompt you type
     PreToolUse        every tool call before it runs (name + arguments)
     PostToolUse       every result (ok / error)
     Notification      agent pings
     Stop              turn boundaries
-    SessionEnd        flight closed + auto receipt → .mayday/receipts/
+    SessionEnd        flight closed + auto receipt → .agentbox/receipts/
 
   ${BOLD}next${RESET}: start a ${DIM}claude${RESET} session in this project, then:
-    mayday list        see the flight
-    mayday receipt     read the tape
+    agentbox list        see the flight
+    agentbox receipt     read the tape
 `);
     process.stdout.write(`${DIM}  hooks are read at session start — restart claude to pick them up${RESET}\n`);
   }

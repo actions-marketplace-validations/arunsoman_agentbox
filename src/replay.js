@@ -1,10 +1,10 @@
 'use strict';
 /**
- * mayday — replay.js
+ * agentbox — replay.js
  * Scrub through a recorded session like security footage.
  *
- *   mayday replay <file>            interactive TUI (TTY)
- *   mayday replay <file> --headless static frame for CI / pipes / GIFs
+ *   agentbox replay <file>            interactive TUI (TTY)
+ *   agentbox replay <file> --headless static frame for CI / pipes / GIFs
  *
  * Keys: [space] play/pause  [←/→] ±1 event  [j/k] ∓/+ 10s
  *       [[ / ]] speed  [g/G] jump to start/end  [q] quit
@@ -104,7 +104,7 @@ function renderStatic(events, opts = {}) {
   const meta = events.find((e) => e.type === 'meta');
   const exit = [...events].reverse().find((e) => e.type === 'exit');
 
-  lines.push(`${CYAN}${BOLD}⬢ MAYDAY FLIGHT RECORD${RESET}  ${DIM}${shorten(meta ? meta.data.cmd : '?', width - 30)}${RESET}`);
+  lines.push(`${CYAN}${BOLD}⬢ AGENTBOX FLIGHT RECORD${RESET}  ${DIM}${shorten(meta ? meta.data.cmd : '?', width - 30)}${RESET}`);
   lines.push(`${DIM}${'─'.repeat(width)}${RESET}`);
 
   // timeline with markers
@@ -141,7 +141,7 @@ function renderStatic(events, opts = {}) {
   if (exit) {
     lines.push(`  ${exit.data && exit.data.code === 0 ? GREEN : RED}${BOLD}landing: exit ${exit.data.code}${RESET} ${DIM}· ${events.length} events · ${fmtDuration(exit.data.durationMs)}${RESET}`);
   }
-  lines.push(`${DIM}  (interactive mode: run in a TTY → mayday replay <file>)${RESET}`);
+  lines.push(`${DIM}  (interactive mode: run in a TTY → agentbox replay <file>)${RESET}`);
   return lines.join('\n');
 }
 
@@ -171,7 +171,7 @@ function replayTui(file, events, opts = {}) {
     process.stdin.pause();
     process.removeListener('SIGINT', onSig);
     stdout.write('\x1b[?25h\x1b[?1049l\x1b[0m');
-    stdout.write(`${DIM}⬢ mayday: replay ended — ${name}${RESET}\n`);
+    stdout.write(`${DIM}⬢ agentbox: replay ended — ${name}${RESET}\n`);
     process.exit(code);
   }
   const onSig = () => shutdown(130);
@@ -202,7 +202,7 @@ function replayTui(file, events, opts = {}) {
 
     const buf = [];
     buf.push(`\x1b[H\x1b[2J`);
-    buf.push(`${CYAN}${BOLD}⬢ MAYDAY REPLAY${RESET}  ${BOLD}${shorten(name, 24)}${RESET}  ${DIM}│${RESET}  ${DIM}${shorten(meta ? meta.data.cmd : '?', W - 46)}${RESET}`);
+    buf.push(`${CYAN}${BOLD}⬢ AGENTBOX REPLAY${RESET}  ${BOLD}${shorten(name, 24)}${RESET}  ${DIM}│${RESET}  ${DIM}${shorten(meta ? meta.data.cmd : '?', W - 46)}${RESET}`);
     buf.push(`${DIM}${'─'.repeat(W)}${RESET}`);
 
     // timeline bar
@@ -289,7 +289,7 @@ function replayTui(file, events, opts = {}) {
   stdout.on('resize', render);
   render();
 
-  if (process.env.MAYDAY_SMOKE) {
+  if (process.env.AGENTBOX_SMOKE) {
     // CI smoke mode: render a few frames, then leave.
     setTimeout(() => { vTime = dur * 0.5; render(); }, 120);
     setTimeout(() => shutdown(0), 260);
@@ -299,17 +299,17 @@ function replayTui(file, events, opts = {}) {
 function replay(file, opts = {}) {
   const res = verifyChain(file);
   if (!res.ok && !opts.force) {
-    process.stderr.write(`\x1b[31m⬢ mayday: chain verification FAILED — ${res.reason}\n`);
+    process.stderr.write(`\x1b[31m⬢ agentbox: chain verification FAILED — ${res.reason}\n`);
     process.stderr.write('   use --force to replay anyway (for forensics)\x1b[0m\n');
     process.exitCode = 1;
     return res.ok;
   }
   const events = res.events;
   if (events.length < 2) {
-    process.stderr.write('⬢ mayday: nothing to replay — session has too few events\n');
+    process.stderr.write('⬢ agentbox: nothing to replay — session has too few events\n');
     return false;
   }
-  if (!process.stdout.isTTY || opts.headless || process.env.MAYDAY_SMOKE) {
+  if (!process.stdout.isTTY || opts.headless || process.env.AGENTBOX_SMOKE) {
     process.stdout.write(renderStatic(events, { width: opts.width, tail: opts.tail }) + '\n');
     return true;
   }

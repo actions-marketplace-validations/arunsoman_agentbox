@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>MAYDAY — the black-box flight recorder for AI agents</title>
-<meta name="description" content="Your agents have root. Who's watching? MAYDAY records any AI agent session to a tamper-evident, 100% local black box. Replay it like security footage. Zero dependencies.">
+<title>AGENTBOX — the black-box flight recorder for AI agents</title>
+<meta name="description" content="Your agents have root. Who's watching? AGENTBOX records any AI agent session to a tamper-evident, 100% local black box. Replay it like security footage. Zero dependencies.">
 <style>
   :root {
     --bg: #07090d; --bg2: #0b0f15; --panel: #0d1117; --line: #1c2530;
@@ -102,13 +102,13 @@
 
 <nav>
   <div class="wrap">
-    <span class="logo"><b>⬢</b> MAYDAY</span>
+    <span class="logo"><b>⬢</b> AGENTBOX</span>
     <div class="links">
       <a href="#why">why</a>
       <a href="#receipt">receipt</a>
       <a href="#quickstart">quickstart</a>
       <a href="#how">how</a>
-      <a href="https://github.com/arunsoman/mayday">github ↗</a>
+      <a href="https://github.com/arunsoman/agentbox">github ↗</a>
     </div>
   </div>
 </nav>
@@ -117,10 +117,10 @@
   <div class="wrap">
     <div class="kicker">// flight recorder for ai agents</div>
     <h1>Your agents have root.<br><span class="mint">Who's watching?</span></h1>
-    <p class="sub">MAYDAY straps a <b>black box</b> to any command or AI agent — no SDK, no cloud, no code changes. Every tool call, file edit, and URL hit lands on a <b>tamper-evident tape</b> you can scrub like security footage. When your agent terrifies you at 2am, you'll have the evidence.</p>
+    <p class="sub">AGENTBOX straps a <b>black box</b> to any command or AI agent — no SDK, no cloud, no code changes. Every tool call, file edit, and URL hit lands on a <b>tamper-evident tape</b> you can scrub like security footage. When your agent terrifies you at 2am, you'll have the evidence.</p>
     <div class="cta">
-      <a class="btn" href="https://github.com/arunsoman/mayday">★ star on github</a>
-      <span class="btn ghost" id="copyNpx">npx mayday-cli demo — click to copy</span>
+      <a class="btn" href="https://github.com/arunsoman/agentbox">★ star on github</a>
+      <span class="btn ghost" id="copyNpx">npx agentbox-cli demo — click to copy</span>
     </div>
     <div class="badges">
       <span><b>0</b> dependencies</span>
@@ -134,7 +134,7 @@
 
 <div class="wrap">
   <div class="term">
-    <div class="bar"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span><span class="ttl">agent@prod — mayday wrap</span></div>
+    <div class="bar"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span><span class="ttl">agent@prod — agentbox wrap</span></div>
     <pre id="typed"></pre>
   </div>
 </div>
@@ -144,8 +144,8 @@
     <h2>The question nobody can answer<span class="mint"> yet</span></h2>
     <p class="lead">2026 made software agent-native: agents run shells, edit files, hit APIs, ship to prod. Frameworks gave them memory, harnesses, tools. Nobody gave them a flight recorder. So when something breaks, you get a story — not evidence.</p>
     <div class="grid">
-      <div class="card reveal"><span class="ico">📼</span><h3>Record anything</h3><p><code>mayday wrap -- anything</code>. Wraps the process, captures stdout/stderr/stdin, classifies tool calls, file ops, shell commands, URLs. Zero code changes in the wrapped program.</p></div>
-      <div class="card reveal"><span class="ico">🔐</span><h3>Tamper-evident tape</h3><p>Every event is sha256-chained, genesis to tip. Edit one character and <code>mayday verify</code> pins the exact forged event. Logs are opinions; chains are evidence.</p></div>
+      <div class="card reveal"><span class="ico">📼</span><h3>Record anything</h3><p><code>agentbox wrap -- anything</code>. Wraps the process, captures stdout/stderr/stdin, classifies tool calls, file ops, shell commands, URLs. Zero code changes in the wrapped program.</p></div>
+      <div class="card reveal"><span class="ico">🔐</span><h3>Tamper-evident tape</h3><p>Every event is sha256-chained, genesis to tip. Edit one character and <code>agentbox verify</code> pins the exact forged event. Logs are opinions; chains are evidence.</p></div>
       <div class="card reveal"><span class="ico">🧾</span><h3>Receipts, not dumps</h3><p>One page a human can scan in five seconds: tool calls, files touched, deletions flagged, URLs hit, and the deadpan metric — <i>humans consulted: 0</i>.</p></div>
       <div class="card reveal"><span class="ico">🎬</span><h3>Replay like footage</h3><p>Interactive TUI scrubber with a timeline of markers. Play at 1–64×, jump to the exact moment, step event by event. Headless mode renders frames for CI and GIFs.</p></div>
       <div class="card reveal"><span class="ico">✂️</span><h3>Shareable clips</h3><p>Export any time range as one self-contained HTML file. Drop it into a PR, an incident review, or the group chat. Works offline, forever.</p></div>
@@ -157,10 +157,10 @@
 <section id="receipt">
   <div class="wrap">
     <h2>Every flight ends with a receipt<span class="mint">.</span></h2>
-    <p class="lead">Real output from <code>mayday demo</code> — a scripted agent that ships to prod on a Friday with zero supervision.</p>
+    <p class="lead">Real output from <code>agentbox demo</code> — a scripted agent that ships to prod on a Friday with zero supervision.</p>
     <div class="split">
       <div class="term">
-        <div class="bar"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span><span class="ttl">mayday receipt</span></div>
+        <div class="bar"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span><span class="ttl">agentbox receipt</span></div>
         <pre class="receipt"><span class="p1">           ⬢  M A Y D A Y   R E C E I P T</span>
 ┌──────────────────────────────────────────────────┐
 │ session                 demo-deploy              │
@@ -186,18 +186,18 @@
 <span class="p2">uneventful flight. the best kind.</span></pre>
       </div>
       <div>
-        <div class="code"><button class="copy" data-copy="mayday wrap --name prod-deploy -- node agent.js">copy</button>
+        <div class="code"><button class="copy" data-copy="agentbox wrap --name prod-deploy -- node agent.js">copy</button>
 <pre><span class="p5"># strap a black box to anything</span>
-<span class="p1">mayday</span> wrap --name prod-deploy <span class="p3">\</span>
+<span class="p1">agentbox</span> wrap --name prod-deploy <span class="p3">\</span>
   -- node agent.js <span class="p6">"ship the release"</span>
 
 <span class="p5"># read the tape</span>
-<span class="p1">mayday</span> receipt      <span class="p5"># one-page summary</span>
-<span class="p1">mayday</span> replay      <span class="p5"># scrub the footage</span>
-<span class="p1">mayday</span> verify      <span class="p5"># chain intact?</span>
-<span class="p1">mayday</span> clip        <span class="p5"># share a moment</span></pre>
+<span class="p1">agentbox</span> receipt      <span class="p5"># one-page summary</span>
+<span class="p1">agentbox</span> replay      <span class="p5"># scrub the footage</span>
+<span class="p1">agentbox</span> verify      <span class="p5"># chain intact?</span>
+<span class="p1">agentbox</span> clip        <span class="p5"># share a moment</span></pre>
         </div>
-        <p class="lead" style="margin-top:18px; font-size:13px;">The tape is plain JSONL in <code>./.mayday/sessions/</code> — grep it, diff it, commit it. It's yours, in your repo, offline by default.</p>
+        <p class="lead" style="margin-top:18px; font-size:13px;">The tape is plain JSONL in <code>./.agentbox/sessions/</code> — grep it, diff it, commit it. It's yours, in your repo, offline by default.</p>
       </div>
     </div>
   </div>
@@ -209,11 +209,11 @@
     <p class="lead">No install, no config, no account. If it runs in a terminal, it can wear a recorder.</p>
     <div class="steps">
       <div class="step reveal"><span class="n">STEP 01</span><h3>Watch the demo</h3><p>A scripted agent deploys to prod, edits config, emails the board. Mayday records everything, then prints the receipt.</p></div>
-      <div class="step reveal"><span class="n">STEP 02</span><h3>Pick your tap</h3><p>Wrap it: <code>mayday wrap -- anything</code>. Or skip the wrapper — <code>mayday init claude</code> hooks every Claude Code session passively, and <code>mayday mcp --</code> wire-taps any MCP server's JSON-RPC.</p></div>
+      <div class="step reveal"><span class="n">STEP 02</span><h3>Pick your tap</h3><p>Wrap it: <code>agentbox wrap -- anything</code>. Or skip the wrapper — <code>agentbox init claude</code> hooks every Claude Code session passively, and <code>agentbox mcp --</code> wire-taps any MCP server's JSON-RPC.</p></div>
       <div class="step reveal"><span class="n">STEP 03</span><h3>Ship the receipt</h3><p>Add the GitHub Action and every agent-touched PR arrives with its flight receipt stapled to it.</p></div>
     </div>
-    <div class="code" style="margin-top:22px"><button class="copy" data-copy='npx mayday-cli demo'>copy</button>
-<pre><span class="p6">npx</span> mayday-cli demo</pre>
+    <div class="code" style="margin-top:22px"><button class="copy" data-copy='npx agentbox-cli demo'>copy</button>
+<pre><span class="p6">npx</span> agentbox-cli demo</pre>
     </div>
   </div>
 </section>
@@ -221,7 +221,7 @@
 <section id="how">
   <div class="wrap">
     <h2>Boring on purpose<span class="mint">.</span></h2>
-    <p class="lead">A flight recorder you can't audit would be a joke. MAYDAY is ~1,000 lines of auditable Node built-ins — <code>crypto</code>, <code>fs</code>, <code>child_process</code>. No <code>node_modules</code>. No supply chain. No phone home. Ever.</p>
+    <p class="lead">A flight recorder you can't audit would be a joke. AGENTBOX is ~1,000 lines of auditable Node built-ins — <code>crypto</code>, <code>fs</code>, <code>child_process</code>. No <code>node_modules</code>. No supply chain. No phone home. Ever.</p>
     <div class="split">
       <div class="code"><pre><span class="p5">// every event on the tape:</span>
 { <span class="p6">"i"</span>: 7, <span class="p6">"t"</span>: 1727172000000,
@@ -246,15 +246,15 @@
 <footer>
   <div class="wrap">
     <div class="big">If your agent has ever scared you at 2am, <b>you need a black box.</b></div>
-    <p>⬢ MAYDAY — MIT © 2026 · fly safe · <a href="https://github.com/arunsoman/mayday">github.com/arunsoman/mayday</a></p>
+    <p>⬢ AGENTBOX — MIT © 2026 · fly safe · <a href="https://github.com/arunsoman/agentbox">github.com/arunsoman/agentbox</a></p>
   </div>
 </footer>
 
 <script>
 // typewriter for hero terminal
 const LINES = [
-  ['p5', '$ mayday wrap --name prod-deploy -- ./deploy-agent'],
-  ['p5', '⬢ mayday: black box on → recording to .mayday/sessions/2026-09-25T…-prod-deploy.jsonl'],
+  ['p5', '$ agentbox wrap --name prod-deploy -- ./deploy-agent'],
+  ['p5', '⬢ agentbox: black box on → recording to .agentbox/sessions/2026-09-25T…-prod-deploy.jsonl'],
   ['p2', '▲ [TOOL] bash("./deploy.sh --env=prod")'],
   ['', '  ▸ building image… done'],
   ['', '  ▸ pushing to registry… done'],
@@ -264,7 +264,7 @@ const LINES = [
   ['p2', '▲ [TOOL] email(board@bigcorp.com — "shipped on friday, yolo")'],
   ['', 'deployment complete. no humans were consulted. ✅'],
   ['p1', '⬢ 19 events · tamper chain intact · humans consulted: 0'],
-  ['p1', '⬢ try: mayday replay → scrub the footage like security cam'],
+  ['p1', '⬢ try: agentbox replay → scrub the footage like security cam'],
 ];
 const typed = document.getElementById('typed');
 let li = 0, ci = 0, html = '';
@@ -294,7 +294,7 @@ document.querySelectorAll('.copy').forEach(b => b.addEventListener('click', () =
   });
 }));
 document.getElementById('copyNpx').addEventListener('click', function () {
-  navigator.clipboard.writeText('npx mayday-cli demo').then(() => {
+  navigator.clipboard.writeText('npx agentbox-cli demo').then(() => {
     const t = this.textContent; this.textContent = 'copied ✓ — paste it in a terminal';
     setTimeout(() => this.textContent = t, 1600);
   });

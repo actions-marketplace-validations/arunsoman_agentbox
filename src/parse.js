@@ -1,6 +1,6 @@
 'use strict';
 /**
- * mayday — parse.js
+ * agentbox — parse.js
  * Zero-magic heuristics that classify agent output lines and build a
  * session summary. Bring-your-own-parser later; these rules ship on by
  * default and intentionally err on the side of "plain".
@@ -85,7 +85,7 @@ function classifyLine(line) {
 /**
  * Build a human summary from a verified event list.
  * Event types produced by wrap():
- *   meta  {cmd, argv, cwd, user, host, platform, node, mayday, name, adapter?}
+ *   meta  {cmd, argv, cwd, user, host, platform, node, agentbox, name, adapter?}
  *   out   {stream: 'stdout'|'stderr', kind, text?|detail?}
  *   in    {text}
  *   exit  {code, durationMs}
@@ -241,7 +241,7 @@ function verdict(stats) {
   const deleted = stats.files.filter((f) => f.ops.some((o) => o === 'deleted' || o === 'removed'));
   if (stats.signals.includes('SIGINT')) return 'flight interrupted mid-air. black box recovered.';
   if (stats.toolErrors > 0) return `${stats.toolErrors} tool call${stats.toolErrors > 1 ? 's' : ''} went sideways. tape tells you which.`;
-  if (stats.exitCode !== 0 && stats.exitCode != null) return 'mayday received. wreckage mapped below.';
+  if (stats.exitCode !== 0 && stats.exitCode != null) return 'agentbox received. wreckage mapped below.';
   if (deleted.length > 0) return `${deleted.length} file${deleted.length > 1 ? 's' : ''} deleted. hope ${deleted.length > 1 ? 'they were' : 'it was'} not load-bearing.`;
   if (stats.humansConsulted === 0 && stats.events > 20) return 'smooth flight. zero supervision. as requested.';
   if (stats.exitCode === 0) return 'uneventful flight. the best kind.';

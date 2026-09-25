@@ -19,11 +19,11 @@ jobs:
       - run: node --test test/
       - name: e2e — demo produces a verifiable session
         run: |
-          node bin/mayday.js demo
-          node bin/mayday.js verify
+          node bin/agentbox.js demo
+          node bin/agentbox.js verify
       - name: tamper detection actually detects
         run: |
-          FILE=$(ls -t .mayday/sessions/*.jsonl | head -1)
+          FILE=$(ls -t .agentbox/sessions/*.jsonl | head -1)
           python3 - "$FILE" <<'EOF'
           import json, sys
           p = sys.argv[1]
@@ -32,5 +32,5 @@ jobs:
           lines[1] = json.dumps(ev)
           open(p, 'w').write('\n'.join(lines) + '\n')
           EOF
-          if node bin/mayday.js verify; then echo "should have failed"; exit 1; fi
+          if node bin/agentbox.js verify; then echo "should have failed"; exit 1; fi
           echo "✓ tamper detected as expected"

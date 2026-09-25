@@ -8,7 +8,7 @@ const { Recorder, verifyChain, eventHash, GENESIS } = require('../src/chain');
 const { classifyLine, summarize } = require('../src/parse');
 
 function tmpdir() {
-  return fs.mkdtempSync(path.join(os.tmpdir(), 'mayday-test-'));
+  return fs.mkdtempSync(path.join(os.tmpdir(), 'agentbox-test-'));
 }
 
 test('hash chain: records, links, and verifies', () => {
@@ -127,7 +127,7 @@ test('replay headless: renders a static frame', async () => {
   const { renderStatic } = require('../src/replay');
   const res = verifyChain(file);
   const frame = renderStatic(res.events, { width: 90 });
-  assert.match(frame, /MAYDAY FLIGHT RECORD/);
+  assert.match(frame, /AGENTBOX FLIGHT RECORD/);
   assert.match(frame, /deploy/);
 });
 
@@ -168,13 +168,13 @@ test('summarize: extracts file ops + tools + urls from a colored agent session',
 
 // ---------------------------------------------------------------- adapters
 
-const BIN = path.join(__dirname, '..', 'bin', 'mayday.js');
+const BIN = path.join(__dirname, '..', 'bin', 'agentbox.js');
 
 function spawnCLI(args, cwd, input) {
   return new Promise((resolve, reject) => {
     const child = require('child_process').spawn(process.execPath, [BIN, ...args], {
       cwd,
-      env: { ...process.env, MAYDAY_HOOKS_RECEIPT: process.env.MAYDAY_HOOKS_RECEIPT || '1' },
+      env: { ...process.env, AGENTBOX_HOOKS_RECEIPT: process.env.AGENTBOX_HOOKS_RECEIPT || '1' },
       stdio: ['pipe', 'pipe', 'pipe'],
     });
     let out = '';
@@ -213,7 +213,7 @@ test('hook adapter: passive session from simulated Claude Code hooks', async () 
   assert.equal(r8.out, '', 'hook must not print to stdout (control channel)');
 
   // find the session file
-  const sessDir = path.join(dir, '.mayday', 'sessions');
+  const sessDir = path.join(dir, '.agentbox', 'sessions');
   const files = fs.readdirSync(sessDir).filter((f) => f.endsWith(`-claude-${sid}.jsonl`));
   assert.equal(files.length, 1, 'one deterministic file per claude session_id');
   const file = path.join(sessDir, files[0]);
@@ -241,10 +241,10 @@ test('hook adapter: passive session from simulated Claude Code hooks', async () 
   assert.deepEqual(stats.files.map((f) => f.path), ['src/retry.ts']);
 
   // auto receipt was written on SessionEnd
-  const receipts = fs.readdirSync(path.join(dir, '.mayday', 'receipts'));
+  const receipts = fs.readdirSync(path.join(dir, '.agentbox', 'receipts'));
   assert.equal(receipts.length, 1);
-  const md = fs.readFileSync(path.join(dir, '.mayday', 'receipts', receipts[0]), 'utf8');
-  assert.match(md, /MAYDAY flight receipt/);
+  const md = fs.readFileSync(path.join(dir, '.agentbox', 'receipts', receipts[0]), 'utf8');
+  assert.match(md, /AGENTBOX flight receipt/);
   assert.match(md, /Bash\(npm test/);
 });
 
@@ -259,7 +259,7 @@ test('hook adapter: survives garbage stdin and unknown events', async () => {
   // unknown events still land as notes on deterministic tapes:
   // garbage + empty payloads (no session_id) fold into one '-claude-unknown' file,
   // the payload WITH a session_id gets its own file
-  const sessDir = path.join(dir, '.mayday', 'sessions');
+  const sessDir = path.join(dir, '.agentbox', 'sessions');
   const files = fs.readdirSync(sessDir).filter((f) => f.endsWith('.jsonl'));
   assert.equal(files.length, 2, 'one file per session_id (+1 for the id-less unknown session)');
   for (const f of files) {
@@ -309,7 +309,7 @@ test('mcp proxy: records tools/call through the wire (end-to-end, real CLI subpr
   assert.match(callResp.result.content[0].text, /echo: hello tape/);
 
   // find the session tape
-  const sessDir = path.join(dir, '.mayday', 'sessions');
+  const sessDir = path.join(dir, '.agentbox', 'sessions');
   const files = fs.readdirSync(sessDir).filter((f) => f.endsWith('node-mcp.jsonl'));
   assert.equal(files.length, 1);
   const file = path.join(sessDir, files[0]);
@@ -354,7 +354,7 @@ test('init claude: merges hooks idempotently, --remove strips them', () => {
     const pre = settings1.hooks.PreToolUse;
     assert.equal(pre.length, 1);
     assert.match(pre[0].hooks[0].command, /hook claude$/);
-    assert.match(pre[0].hooks[0].command, /mayday\.js"/);
+    assert.match(pre[0].hooks[0].command, /agentbox\.js"/);
 
     // idempotent: re-init changes nothing
     const r2 = initClaude({});
@@ -372,7 +372,7 @@ test('init claude: merges hooks idempotently, --remove strips them', () => {
     assert.equal(settings4.hooks.PreToolUse.length, 2, 'foreign hook untouched');
     assert.equal(settings4.hooks.PreToolUse.filter((g) => g.hooks[0].command === 'echo mine').length, 1);
 
-    // --remove strips only mayday's entries
+    // --remove strips only agentbox's entries
     const r5 = initClaude({ remove: true });
     assert.equal(r5.changed, 7);
     const settings5 = JSON.parse(fs.readFileSync(r1.file, 'utf8'));
@@ -465,10 +465,10 @@ test('redact: deep-walks objects and arrays without mutating input', () => {
   assert.equal(value.nested[1], 'plain');
 });
 
-test('redact: disabled via MAYDAY_REDACT=0', () => {
+test('redact: disabled via AGENTBOX_REDACT=0', () => {
   resetCache();
-  const prev = process.env.MAYDAY_REDACT;
-  process.env.MAYDAY_REDACT = '0';
+  const prev = process.env.AGENTBOX_REDACT;
+  process.env.AGENTBOX_REDACT = '0';
   resetCache();
   try {
     const secret = fake(['sk-', 'abcdefghijklmnopqrstuvwxyz', '012345']);
@@ -476,8 +476,8 @@ test('redact: disabled via MAYDAY_REDACT=0', () => {
     assert.equal(count, 0);
     assert.equal(text, secret);
   } finally {
-    if (prev === undefined) delete process.env.MAYDAY_REDACT;
-    else process.env.MAYDAY_REDACT = prev;
+    if (prev === undefined) delete process.env.AGENTBOX_REDACT;
+    else process.env.AGENTBOX_REDACT = prev;
     resetCache();
   }
 });

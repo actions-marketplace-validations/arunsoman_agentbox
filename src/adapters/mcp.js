@@ -1,12 +1,12 @@
 'use strict';
 /**
- * mayday — adapters/mcp.js
+ * agentbox — adapters/mcp.js
  * The MCP wire tap: run any MCP server behind a recording proxy.
  *
- *   mayday mcp -- npx -y @modelcontextprotocol/server-everything
+ *   agentbox mcp -- npx -y @modelcontextprotocol/server-everything
  *
  * Point your MCP client (Claude Desktop, Cursor, Claude Code, any harness)
- * at mayday instead of the server. Mayday spawns the real server, forwards
+ * at agentbox instead of the server. Mayday spawns the real server, forwards
  * every JSON-RPC message verbatim, and writes a hash-chained tape of:
  *
  *   mcp_msg   every message, both directions (method + id + preview)
@@ -70,7 +70,7 @@ class LineSplitter {
 function runMcpProxy(serverArgs, opts = {}) {
   return new Promise((resolve, reject) => {
     if (!Array.isArray(serverArgs) || serverArgs.length === 0) {
-      reject(new Error('mcp: no server command — usage: mayday mcp -- <server command> [args…]'));
+      reject(new Error('mcp: no server command — usage: agentbox mcp -- <server command> [args…]'));
       return;
     }
     const name = opts.name || `${path.basename(serverArgs[0])}-mcp`;
@@ -84,19 +84,19 @@ function runMcpProxy(serverArgs, opts = {}) {
       user: os.userInfo().username,
       host: os.hostname(),
       platform: `${process.platform} ${process.arch}`,
-      mayday: VERSION,
+      agentbox: VERSION,
       pid: process.pid,
     });
 
     if (!opts.quiet) {
       const DIM = '\x1b[2m'; const CYAN = '\x1b[36m'; const BOLD = '\x1b[1m'; const RESET = '\x1b[0m';
-      process.stderr.write(`${DIM}${CYAN}⬢ mayday${RESET}${DIM}: MCP wire tap on → ${file}${RESET}\n`);
-      process.stderr.write(`${DIM}  point your MCP client at mayday; server: ${serverArgs.join(' ')}${RESET}\n`);
+      process.stderr.write(`${DIM}${CYAN}⬢ agentbox${RESET}${DIM}: MCP wire tap on → ${file}${RESET}\n`);
+      process.stderr.write(`${DIM}  point your MCP client at agentbox; server: ${serverArgs.join(' ')}${RESET}\n`);
     }
 
     const child = spawn(serverArgs[0], serverArgs.slice(1), {
       stdio: ['pipe', 'pipe', 'pipe'],
-      env: { ...process.env, MAYDAY: '1', MAYDAY_SESSION: file },
+      env: { ...process.env, AGENTBOX: '1', AGENTBOX_SESSION: file },
       cwd: opts.cwd || process.cwd(),
     });
 
@@ -127,7 +127,7 @@ function runMcpProxy(serverArgs, opts = {}) {
       rec.close();
       if (!opts.quiet) {
         const DIM = '\x1b[2m'; const CYAN = '\x1b[36m'; const RESET = '\x1b[0m';
-        process.stderr.write(`${DIM}${CYAN}⬢ mayday${RESET}${DIM}: ${rec.i} events recorded · ${calls} tool calls · try: mayday receipt${RESET}\n`);
+        process.stderr.write(`${DIM}${CYAN}⬢ agentbox${RESET}${DIM}: ${rec.i} events recorded · ${calls} tool calls · try: agentbox receipt${RESET}\n`);
       }
       resolve({ file, exitCode: code == null ? 0 : code });
     }
@@ -139,7 +139,7 @@ function runMcpProxy(serverArgs, opts = {}) {
       process.stdout.write(`${line}\n`);
     }
 
-    /** client (agent) → mayday → real server */
+    /** client (agent) → agentbox → real server */
     function onClientLine(line) {
       let msg = null;
       try { msg = JSON.parse(line); } catch { /* not JSON — still forwarded verbatim */ }
@@ -168,7 +168,7 @@ function runMcpProxy(serverArgs, opts = {}) {
       forwardToServer(line);
     }
 
-    /** real server → mayday → client */
+    /** real server → agentbox → client */
     function onServerLine(line) {
       let msg = null;
       try { msg = JSON.parse(line); } catch { /* pass through untouched */ }
@@ -220,7 +220,7 @@ function runMcpProxy(serverArgs, opts = {}) {
     });
 
     child.on('error', (e) => {
-      rec.append('out', { stream: 'stderr', kind: 'plain', text: `mayday: failed to spawn MCP server: ${e.message}` });
+      rec.append('out', { stream: 'stderr', kind: 'plain', text: `agentbox: failed to spawn MCP server: ${e.message}` });
       finalize(127);
     });
     child.on('close', (code, signal) => finalize(code, signal));
@@ -235,12 +235,12 @@ function runMcpProxy(serverArgs, opts = {}) {
 }
 
 /**
- * `mayday init mcp -- <server command>`
- * Print ready-to-paste MCP config blocks that route the server through mayday.
+ * `agentbox init mcp -- <server command>`
+ * Print ready-to-paste MCP config blocks that route the server through agentbox.
  */
 function initMcp(serverArgs, opts = {}) {
   if (!Array.isArray(serverArgs) || serverArgs.length === 0) {
-    process.stderr.write('usage: mayday init mcp -- <server command> [args…]\nexample: mayday init mcp -- npx -y @modelcontextprotocol/server-everything\n');
+    process.stderr.write('usage: agentbox init mcp -- <server command> [args…]\nexample: agentbox init mcp -- npx -y @modelcontextprotocol/server-everything\n');
     process.exitCode = 1;
     return;
   }
@@ -256,9 +256,9 @@ function initMcp(serverArgs, opts = {}) {
       break;
     }
   }
-  const displayCmd = `mayday mcp -- ${serverArgs.join(' ')}`;
+  const displayCmd = `agentbox mcp -- ${serverArgs.join(' ')}`;
 
-  process.stdout.write(`${CYAN}${BOLD}⬢ mayday${RESET}: MCP wire tap — route ${DIM}${serverArgs.join(' ')}${RESET} through mayday\n\n`);
+  process.stdout.write(`${CYAN}${BOLD}⬢ agentbox${RESET}: MCP wire tap — route ${DIM}${serverArgs.join(' ')}${RESET} through agentbox\n\n`);
   process.stdout.write(`  every ${BOLD}tools/call${RESET} (arguments, results, duration) lands on a tamper-evident tape\n\n`);
 
   const block = (title, file, json) => {
@@ -266,18 +266,18 @@ function initMcp(serverArgs, opts = {}) {
   };
 
   block('Claude Code (project)', '.mcp.json', JSON.stringify({
-    mcpServers: { [serverName]: { command: 'mayday', args: ['mcp', '--', ...serverArgs] } },
+    mcpServers: { [serverName]: { command: 'agentbox', args: ['mcp', '--', ...serverArgs] } },
   }, null, 2));
 
   block('Claude Desktop', 'claude_desktop_config.json', JSON.stringify({
-    mcpServers: { [serverName]: { command: 'mayday', args: ['mcp', '--', ...serverArgs] } },
+    mcpServers: { [serverName]: { command: 'agentbox', args: ['mcp', '--', ...serverArgs] } },
   }, null, 2));
 
   block('Cursor', '~/.cursor/mcp.json', JSON.stringify({
-    mcpServers: { [serverName]: { command: 'mayday', args: ['mcp', '--', ...serverArgs] } },
+    mcpServers: { [serverName]: { command: 'agentbox', args: ['mcp', '--', ...serverArgs] } },
   }, null, 2));
 
-  process.stdout.write(`  ${DIM}alias: ${displayCmd}\n  mayday must be on PATH (npm i -g mayday-cli) or replace "mayday"\n  with \`node <path>/bin/mayday.js\`. restart the client to pick it up.${RESET}\n`);
+  process.stdout.write(`  ${DIM}alias: ${displayCmd}\n  agentbox must be on PATH (npm i -g agentbox-cli) or replace "agentbox"\n  with \`node <path>/bin/agentbox.js\`. restart the client to pick it up.${RESET}\n`);
 }
 
 module.exports = { runMcpProxy, initMcp, LineSplitter };

@@ -2,8 +2,8 @@
 /**
  * examples/fake-agent.js
  * A scripted "agent" that behaves like the real thing — tools, edits,
- * a deploy, one questionable decision — so you can see mayday work
- * without wiring up an actual LLM. Used by `mayday demo`.
+ * a deploy, one questionable decision — so you can see agentbox work
+ * without wiring up an actual LLM. Used by `agentbox demo`.
  */
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 

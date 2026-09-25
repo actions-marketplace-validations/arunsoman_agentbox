@@ -1,6 +1,6 @@
 'use strict';
 /**
- * mayday — receipt.js
+ * agentbox — receipt.js
  * The one-page flight receipt: what happened, in numbers a human can scan
  * in 5 seconds. Formats: text (POS-receipt aesthetic), markdown (PRs),
  * json (machines).
@@ -93,7 +93,7 @@ function textReceipt(stats, chainOk) {
 
 function markdownReceipt(stats, chainOk) {
   const L = [];
-  L.push(`## ⬢ MAYDAY flight receipt — \`${stats.name}\``);
+  L.push(`## ⬢ AGENTBOX flight receipt — \`${stats.name}\``);
   L.push('');
   L.push(`> ${verdict(stats)}`);
   L.push('');
@@ -150,7 +150,7 @@ function receipt(file, opts = {}) {
   const res = verifyChain(file);
   const chainOk = res.ok;
   if (!res.ok && !opts.force) {
-    process.stderr.write(`\x1b[31m⬢ mayday: chain verification FAILED — ${res.reason}\x1b[0m\n`);
+    process.stderr.write(`\x1b[31m⬢ agentbox: chain verification FAILED — ${res.reason}\x1b[0m\n`);
     process.exitCode = 1;
     return { ok: false, chainOk, stats: null };
   }
