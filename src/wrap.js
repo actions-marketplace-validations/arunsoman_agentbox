@@ -33,7 +33,7 @@ function spawnSpec(commandArgs, usePty, terminalSize = {}) {
   const rows = Number.isInteger(terminalSize.rows) && terminalSize.rows > 0 ? terminalSize.rows : 24;
   const columns = Number.isInteger(terminalSize.columns) && terminalSize.columns > 0 ? terminalSize.columns : 80;
   if (process.platform === 'darwin' || process.platform.endsWith('bsd')) {
-    const command = `stty rows ${rows} cols ${columns} 2>/dev/null; exec ${commandArgs.map(shellQuote).join(' ')}`;
+    const command = `stty rows ${rows} columns ${columns} 2>/dev/null; exec ${commandArgs.map(shellQuote).join(' ')}`;
     return { command: 'script', args: ['-q', '/dev/null', 'sh', '-c', command] };
   }
 
