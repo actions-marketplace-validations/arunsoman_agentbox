@@ -1,7 +1,7 @@
 {
   "name": "agentbox-cli",
   "version": "0.2.1",
-  "description": "⬢ The black-box flight recorder for AI agents. Zero deps, 100% local, tamper-evident.",
+  "description": "⬢ The local black-box flight recorder for AI agents. Zero deps, hash-chained session logs.",
   "license": "MIT",
   "author": "you <me@me.me>",
   "bin": {

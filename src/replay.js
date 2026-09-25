@@ -154,7 +154,7 @@ function renderStatic(events, opts = {}) {
   const meta = events.find((e) => e.type === 'meta');
   const exit = [...events].reverse().find((e) => e.type === 'exit');
 
-  lines.push(`${CYAN}${BOLD}⬢ AGENTBOX FLIGHT RECORD${RESET}  ${DIM}${shorten(meta ? meta.data.cmd : '?', width - 30)}${RESET}`);
+  lines.push(`${CYAN}${BOLD}⬢ AGENTBOX FLIGHT RECORD${RESET}  ${DIM}${shorten(meta ? evText(meta) : '?', width - 30)}${RESET}`);
   lines.push(`${DIM}${'─'.repeat(width)}${RESET}`);
 
   // timeline with markers
@@ -213,7 +213,7 @@ function replayTui(file, events, opts = {}) {
   const previousFrame = [];
   let stopped = false;
 
-  const name = (meta && meta.data && meta.data.name) || 'session';
+  const name = meta && meta.data ? evText({ type: 'out', data: { text: meta.data.name || 'session' } }) : 'session';
   const cols = () => (stdout.columns || 100);
   const rows = () => (stdout.rows || 30);
 
@@ -227,12 +227,16 @@ function replayTui(file, events, opts = {}) {
     process.stdin.removeListener('data', onKey);
     process.stdin.pause();
     process.removeListener('SIGINT', onSig);
+    process.removeListener('SIGTERM', onTerm);
+    process.removeListener('SIGHUP', onHup);
     stdout.removeListener('resize', render);
     stdout.write('\x1b[?25h\x1b[?1049l\x1b[0m');
     stdout.write(`${DIM}⬢ agentbox: replay ended — ${name}${RESET}\n`);
     process.exit(code);
   }
   const onSig = () => shutdown(130);
+  const onTerm = () => shutdown(143);
+  const onHup = () => shutdown(129);
 
   function visibleIdx() {
     // index of last event with t - t0 <= vTime
@@ -269,7 +273,7 @@ function replayTui(file, events, opts = {}) {
       return;
     }
     if (W < 50) buf.push(`${CYAN}${BOLD}⬢ REPLAY${RESET} ${shorten(name, W - 10)}`);
-    else buf.push(`${CYAN}${BOLD}⬢ AGENTBOX REPLAY${RESET}  ${BOLD}${shorten(name, 24)}${RESET}  ${DIM}│${RESET}  ${DIM}${shorten(meta ? meta.data.cmd : '?', W - 46)}${RESET}`);
+    else buf.push(`${CYAN}${BOLD}⬢ AGENTBOX REPLAY${RESET}  ${BOLD}${shorten(name, 24)}${RESET}  ${DIM}│${RESET}  ${DIM}${shorten(meta ? evText(meta) : '?', W - 46)}${RESET}`);
     buf.push(`${DIM}${'─'.repeat(W)}${RESET}`);
 
     // timeline bar
@@ -339,6 +343,9 @@ function replayTui(file, events, opts = {}) {
       if (cur >= events.length - 1) {
         playing = false;
         vTime = dur;
+        render();
+        setTimeout(() => shutdown(0), 300).unref();
+        return;
       }
       const tick = Math.floor(vTime / 100);
       if (tick !== lastTick) {
@@ -365,6 +372,8 @@ function replayTui(file, events, opts = {}) {
   };
 
   process.on('SIGINT', onSig);
+  process.on('SIGTERM', onTerm);
+  process.on('SIGHUP', onHup);
   process.stdin.setRawMode(true);
   process.stdin.resume();
   process.stdin.on('data', onKey);
@@ -389,6 +398,7 @@ function replay(file, opts = {}) {
   const events = res.events;
   if (events.length < 2) {
     process.stderr.write('⬢ agentbox: nothing to replay — session has too few events\n');
+    process.exitCode = 1;
     return false;
   }
   if (!process.stdout.isTTY || opts.headless || process.env.AGENTBOX_SMOKE) {

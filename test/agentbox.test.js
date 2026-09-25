@@ -47,6 +47,21 @@ test('hash chain: tampering is detected', () => {
   assert.match(res.reason, /event 1/);
 });
 
+test('hash chain: rejects invalid numbering and marks a clean prefix incomplete', () => {
+  const dir = tmpdir();
+  const file = path.join(dir, 'prefix.jsonl');
+  const rec = new Recorder(file, { name: 'prefix', cmd: 'x' });
+  rec.append('out', { stream: 'stdout', kind: 'plain', text: 'work' });
+  rec.close();
+  assert.equal(verifyChain(file).ok, true);
+  assert.equal(verifyChain(file).complete, false);
+  const events = fs.readFileSync(file, 'utf8').trim().split('\n').map(JSON.parse);
+  events[0].i = 99;
+  events[0].hash = eventHash(events[0].prev, events[0].i, events[0].t, events[0].type, events[0].data);
+  fs.writeFileSync(file, `${events.map(JSON.stringify).join('\n')}\n`);
+  assert.equal(verifyChain(file).ok, false);
+});
+
 test('chain: tail reader handles records larger than its read window', () => {
   const dir = tmpdir();
   const file = path.join(dir, 'large-tail.jsonl');
@@ -68,6 +83,20 @@ test('chain: streaming loader reports a corrupt line and keeps its prefix', () =
   const loaded = loadEvents(file);
   assert.equal(loaded.events.length, 2);
   assert.equal(loaded.corrupt.line, 2);
+});
+
+test('chain: refuses symlinked output files and parent directories', () => {
+  const dir = tmpdir();
+  const real = path.join(dir, 'real');
+  fs.mkdirSync(real);
+  fs.symlinkSync(real, path.join(dir, 'linked'));
+  assert.throws(() => new Recorder(path.join(dir, 'linked', 'session.jsonl'), { name: 'bad' }), /refusing symlink path/);
+  const target = path.join(dir, 'target.jsonl');
+  fs.writeFileSync(target, 'untouched');
+  const link = path.join(dir, 'session.jsonl');
+  fs.symlinkSync(target, link);
+  assert.throws(() => new Recorder(link, { name: 'bad' }), /refusing symlink path/);
+  assert.equal(fs.readFileSync(target, 'utf8'), 'untouched');
 });
 
 test('classifyLine: tool, cmd, file, net, plain', () => {
@@ -131,6 +160,17 @@ test('summarize: rolls up a session', () => {
   assert.equal(stats.humansConsulted, 1);
   assert.equal(stats.exitCode, 0);
   assert.equal(stats.durationMs, 1500);
+});
+
+test('summarize counts repeated tool calls instead of deduplicating them', () => {
+  const events = [
+    { type: 'meta', t: 1, data: { name: 'x', cmd: 'x' } },
+    { type: 'tool_call', t: 2, data: { phase: 'start', name: 'echo', input: { text: 'same' } } },
+    { type: 'tool_call', t: 3, data: { phase: 'start', name: 'echo', input: { text: 'same' } } },
+  ];
+  const stats = summarize(events);
+  assert.equal(stats.toolCallStarts, 2);
+  assert.equal(stats.tools.length, 2);
 });
 
 test('summarize: recovers file details from wrapped terminal output', () => {
@@ -578,7 +618,7 @@ test('init claude: merges hooks idempotently, --remove strips them', () => {
     const pre = settings1.hooks.PreToolUse;
     assert.equal(pre.length, 1);
     assert.match(pre[0].hooks[0].command, /hook claude$/);
-    assert.match(pre[0].hooks[0].command, /agentbox\.js"/);
+    assert.match(pre[0].hooks[0].command, /agentbox\.js['"]/);
 
     // idempotent: re-init changes nothing
     const r2 = initClaude({});
@@ -687,6 +727,22 @@ test('redact: deep-walks objects and arrays without mutating input', () => {
   assert.ok(String(value.args.command).includes(PLACEHOLDER));
   assert.ok(String(value.nested[0].secret).includes(PLACEHOLDER));
   assert.equal(value.nested[1], 'plain');
+});
+
+test('redact: masks values based on structured secret keys', () => {
+  resetCache();
+  const input = {
+    password: 'correct horse battery staple',
+    api_key: 'custom-internal-value',
+    authorization: 'Basic dXNlcjpwYXNz',
+    nested: { client_secret: { value: 'object-secret' } },
+  };
+  const { value, count } = redactDeep(input);
+  assert.equal(count, 4);
+  assert.equal(value.password, PLACEHOLDER);
+  assert.equal(value.api_key, PLACEHOLDER);
+  assert.equal(value.authorization, PLACEHOLDER);
+  assert.equal(value.nested.client_secret, PLACEHOLDER);
 });
 
 test('redact: disabled via AGENTBOX_REDACT=0', () => {

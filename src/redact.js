@@ -23,6 +23,7 @@ const fs = require('fs');
 const path = require('path');
 
 const PLACEHOLDER = '[REDACTED]';
+const SECRET_KEY_RE = /^(?:password|passwd|pwd|secret|token|api[_-]?key|access[_-]?key|private[_-]?key|client[_-]?secret|auth(?:orization)?|auth[_-]?token|session[_-]?key)$/i;
 
 /**
  * Built-in patterns. Order matters only for readability; each match is
@@ -170,11 +171,12 @@ function redactDeep(value, opts = {}) {
   return { value: out, count: state.count };
 }
 
-function walk(v, state, opts, depth) {
+function walk(v, state, opts, depth, key) {
   if (depth > 30) return v; // defensive against cycles / absurd nesting
   if (v == null) return v;
   const t = typeof v;
   if (t === 'string') {
+    if (key && SECRET_KEY_RE.test(key)) { state.count += 1; return PLACEHOLDER; }
     const r = redactString(v, opts);
     state.count += r.count;
     return r.text;
@@ -192,7 +194,10 @@ function walk(v, state, opts, depth) {
     for (const k of Object.keys(v)) {
       // also redact secret-looking *keys*' values more aggressively is already
       // handled by the kv/json patterns on stringified forms; walk the value.
-      out[k] = walk(v[k], state, opts, depth + 1);
+      if (SECRET_KEY_RE.test(k) && v[k] != null) {
+        out[k] = PLACEHOLDER;
+        state.count += 1;
+      } else out[k] = walk(v[k], state, opts, depth + 1, k);
     }
     return out;
   }
@@ -222,4 +227,5 @@ module.exports = {
   resolve,
   resetCache,
   loadConfig,
+  SECRET_KEY_RE,
 };

@@ -22,6 +22,7 @@ const os = require('os');
 const path = require('path');
 const { spawn } = require('child_process');
 const { Recorder, newSessionFile, VERSION } = require('../chain');
+const MAX_PARTIAL_LINE = 1024 * 1024;
 
 function trunc(s, n) {
   const str = s == null ? '' : String(s);
@@ -35,7 +36,10 @@ function slim(v, cap) {
   try {
     const j = JSON.stringify(v);
     if (j.length <= cap) return v;
-    return trunc(j, cap);
+    const keys = ['command', 'file_path', 'notebook_path', 'path', 'url', 'query', 'pattern'];
+    const summary = { _truncated: true };
+    for (const key of keys) if (v[key] != null) summary[key] = trunc(v[key], cap / 2);
+    return Object.keys(summary).length > 1 ? summary : trunc(j, cap);
   } catch { return trunc(String(v), cap); }
 }
 
@@ -73,6 +77,12 @@ class LineSplitter {
       const rest = data.slice(start);
       this.parts.push(rest);
       this.length += rest.length;
+      if (this.length >= MAX_PARTIAL_LINE) {
+        const bounded = this.parts.join('');
+        this.parts = [];
+        this.length = 0;
+        if (this.onFlush) this.onFlush(bounded);
+      }
     }
   }
 
@@ -122,6 +132,7 @@ function runMcpProxy(serverArgs, opts = {}) {
       stdio: ['pipe', 'pipe', 'pipe'],
       env: { ...process.env, AGENTBOX: '1', AGENTBOX_SESSION: file },
       cwd: opts.cwd || process.cwd(),
+      detached: process.platform !== 'win32',
     });
 
     const pending = new Map(); // request id (string) → { name, t0 }
@@ -131,6 +142,8 @@ function runMcpProxy(serverArgs, opts = {}) {
     let calls = 0;
     let done = false;
     let anonSeq = 0;
+    let shutdownTimer = null;
+    let requestedSignal = null;
 
     const clientSplit = new LineSplitter(onClientLine, (raw) => forwardToServer(raw));
     const serverSplit = new LineSplitter(onServerLine, (raw) => forwardToClient(raw));
@@ -138,6 +151,9 @@ function runMcpProxy(serverArgs, opts = {}) {
     function finalize(code, signal) {
       if (done) return;
       done = true;
+      clearTimeout(shutdownTimer);
+      process.removeListener('SIGINT', onSigint);
+      process.removeListener('SIGTERM', onSigterm);
       clientSplit.flush();
       serverSplit.flush();
       rec.append('exit', {
@@ -153,14 +169,21 @@ function runMcpProxy(serverArgs, opts = {}) {
         const DIM = '\x1b[2m'; const CYAN = '\x1b[36m'; const RESET = '\x1b[0m';
         process.stderr.write(`${DIM}${CYAN}⬢ agentbox${RESET}${DIM}: ${rec.i} events recorded · ${calls} tool calls · try: agentbox receipt${RESET}\n`);
       }
-      resolve({ file, exitCode: code == null ? 0 : code });
+      const exitCode = requestedSignal === 'SIGINT' ? 130 : requestedSignal === 'SIGTERM' ? 143 : (code == null ? (signal ? 1 : 0) : code);
+      resolve({ file, exitCode });
     }
 
     function forwardToServer(line) {
-      if (child.stdin && child.stdin.writable) child.stdin.write(`${line}\n`);
+      if (child.stdin && child.stdin.writable && !child.stdin.write(`${line}\n`)) {
+        process.stdin.pause();
+        child.stdin.once('drain', () => process.stdin.resume());
+      }
     }
     function forwardToClient(line) {
-      process.stdout.write(`${line}\n`);
+      if (!process.stdout.write(`${line}\n`)) {
+        child.stdout.pause();
+        process.stdout.once('drain', () => child.stdout.resume());
+      }
     }
 
     /** client (agent) → agentbox → real server */
@@ -230,7 +253,12 @@ function runMcpProxy(serverArgs, opts = {}) {
 
     process.stdin.setEncoding('utf8');
     process.stdin.on('data', (c) => clientSplit.push(c));
-    process.stdin.on('end', () => { try { child.stdin.end(); } catch { /* gone */ } });
+    process.stdin.on('end', () => {
+      clientSplit.flush();
+      try { child.stdin.end(); } catch { /* gone */ }
+      shutdownTimer = setTimeout(() => terminate('SIGTERM'), 1000);
+      shutdownTimer.unref();
+    });
     process.stdin.on('error', () => { /* client vanished; server close will finalize */ });
 
     child.stdout.setEncoding('utf8');
@@ -250,12 +278,22 @@ function runMcpProxy(serverArgs, opts = {}) {
     });
     child.on('close', (code, signal) => finalize(code, signal));
 
-    const onSig = (signal) => {
-      rec.append('signal', { signal, source: 'keyboard' });
-      try { child.kill(signal); } catch { /* gone */ }
+    const killChild = (signal) => {
+      if (!child.pid) return;
+      try { if (process.platform !== 'win32') process.kill(-child.pid, signal); else child.kill(signal); } catch { /* gone */ }
     };
-    process.on('SIGINT', () => onSig('SIGINT'));
-    process.on('SIGTERM', () => onSig('SIGTERM'));
+    const terminate = (signal) => {
+      requestedSignal = requestedSignal || signal;
+      rec.append('signal', { signal, source: 'keyboard' });
+      killChild(signal);
+      clearTimeout(shutdownTimer);
+      shutdownTimer = setTimeout(() => killChild('SIGKILL'), 2000);
+      shutdownTimer.unref();
+    };
+    const onSigint = () => terminate('SIGINT');
+    const onSigterm = () => terminate('SIGTERM');
+    process.on('SIGINT', onSigint);
+    process.on('SIGTERM', onSigterm);
   });
 }
 

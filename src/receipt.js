@@ -18,6 +18,17 @@ const ORANGE = '\x1b[38;5;208m';
 
 const W = 52; // inner width
 
+function safeText(s) {
+  return String(s == null ? '' : s)
+    .replace(/\x1b\][^\x07]*(?:\x07|\x1b\\)/g, '')
+    .replace(/\x1b\[[?0-9;:><]*[ -/]*[@-~]/g, '')
+    .replace(/[\x00-\x08\x0b\x0c\x0e-\x1f\x7f-\x9f]/g, '');
+}
+
+function mdEsc(s) {
+  return safeText(s).replace(/\\/g, '\\\\').replace(/([`*_[\]<>|])/g, '\\$1').replace(/\r?\n/g, ' ');
+}
+
 function visibleLen(s) {
   return String(s || '').replace(/\x1b(?:\[[0-9;]*[A-HJKSTfmnsu]|\][^\x07]*(?:\x07|\x1b\\)|[P^_].*?\x1b\\)/g, '').length;
 }
@@ -29,7 +40,7 @@ function pad(s, w) {
   return s + ' '.repeat(Math.max(0, w - len));
 }
 function row(label, value) {
-  return `│ ${pad(label, 24)}${pad(value, W - 27)}│`;
+  return `│ ${pad(safeText(label), 24)}${pad(safeText(value), W - 27)}│`;
 }
 /** multi-row value: wraps long values across continuation rows */
 function rowsFor(label, value) {
@@ -93,13 +104,13 @@ function textReceipt(stats, chainOk) {
 
 function markdownReceipt(stats, chainOk) {
   const L = [];
-  L.push(`## ⬢ AGENTBOX flight receipt — \`${stats.name}\``);
+  L.push(`## ⬢ AGENTBOX flight receipt — \`${mdEsc(stats.name)}\``);
   L.push('');
-  L.push(`> ${verdict(stats)}`);
+  L.push(`> ${mdEsc(verdict(stats))}`);
   L.push('');
   L.push('| | |');
   L.push('|---|---|');
-  L.push(`| **command** | \`${stats.command}\` |`);
+  L.push(`| **command** | \`${mdEsc(stats.command)}\` |`);
   L.push(`| **started** | ${stats.started ? stats.started.toISOString() : '?'} |`);
   L.push(`| **duration** | ${fmtDuration(stats.durationMs)} |`);
   L.push(`| **exit code** | ${stats.exitCode == null ? '?' : stats.exitCode} |`);
@@ -114,7 +125,7 @@ function markdownReceipt(stats, chainOk) {
     L.push('');
     L.push('<details><summary>Prompts (the human did say things)</summary>');
     L.push('');
-    for (const p of stats.prompts.slice(0, 10)) L.push(`- “${p.replace(/`/g, "'").slice(0, 120)}”`);
+    for (const p of stats.prompts.slice(0, 10)) L.push(`- “${mdEsc(p).slice(0, 120)}”`);
     L.push('');
     L.push('</details>');
   }
@@ -122,7 +133,7 @@ function markdownReceipt(stats, chainOk) {
     L.push('');
     L.push('<details><summary>Files touched</summary>');
     L.push('');
-    for (const f of stats.files.slice(0, 20)) L.push(`- \`${f.path}\` — ${f.ops.join(', ')}`);
+    for (const f of stats.files.slice(0, 20)) L.push(`- \`${mdEsc(f.path)}\` — ${mdEsc(f.ops.join(', '))}`);
     L.push('');
     L.push('</details>');
   }
@@ -130,7 +141,7 @@ function markdownReceipt(stats, chainOk) {
     L.push('');
     L.push('<details><summary>Tool calls</summary>');
     L.push('');
-    for (const t of stats.tools.slice(0, 20)) L.push(`- \`${t.replace(/`/g, "'")}\``);
+    for (const t of stats.tools.slice(0, 20)) L.push(`- \`${mdEsc(t)}\``);
     L.push('');
     L.push('</details>');
   }
@@ -148,9 +159,9 @@ function jsonReceipt(stats, chainOk, file) {
  */
 function receipt(file, opts = {}) {
   const res = verifyChain(file);
-  const chainOk = res.ok;
-  if (!res.ok && !opts.force) {
-    process.stderr.write(`\x1b[31m⬢ agentbox: chain verification FAILED — ${res.reason}\x1b[0m\n`);
+  const chainOk = res.ok && res.complete;
+  if ((!res.ok || !res.complete) && !opts.force) {
+    process.stderr.write(`\x1b[31m⬢ agentbox: chain verification FAILED — ${res.reason || 'session is incomplete (missing exit event)'}\x1b[0m\n`);
     process.exitCode = 1;
     return { ok: false, chainOk, stats: null };
   }

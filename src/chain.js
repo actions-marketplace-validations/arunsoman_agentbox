@@ -26,6 +26,21 @@ function eventHash(prev, i, t, type, data) {
   return sha256(JSON.stringify([prev, i, t, type, data]));
 }
 
+function assertNotSymlink(file) {
+  const absolute = path.resolve(file);
+  const parsed = path.parse(absolute);
+  let current = parsed.root;
+  for (const part of absolute.slice(parsed.root.length).split(path.sep).filter(Boolean)) {
+    current = path.join(current, part);
+    try {
+      if (fs.lstatSync(current).isSymbolicLink()) throw new Error(`refusing symlink path: ${current}`);
+    } catch (e) {
+      if (e.code === 'ENOENT') return;
+      throw e;
+    }
+  }
+}
+
 /** Append-only recorder. Writes JSONL, one event per line. */
 class Recorder {
   constructor(file, meta) {
@@ -36,6 +51,7 @@ class Recorder {
     this.pending = [];
     this.pendingBytes = 0;
     this.flushTimer = null;
+    assertNotSymlink(file);
     fs.mkdirSync(path.dirname(file), { recursive: true });
     this.fd = fs.openSync(file, 'w');
     // stamp redaction policy into meta so the tape is self-describing
@@ -129,17 +145,24 @@ function verifyChain(file) {
     return { ok: false, reason: 'empty session', events };
   }
   let prev = GENESIS;
-  for (const ev of events) {
+  for (let index = 0; index < events.length; index++) {
+    const ev = events[index];
+    if (!ev || typeof ev !== 'object' || ev.i !== index || !Number.isFinite(ev.t) || typeof ev.type !== 'string' || !ev.data || typeof ev.data !== 'object' || Array.isArray(ev.data) || typeof ev.hash !== 'string') {
+      return { ok: false, reason: `invalid event structure at event ${index}`, events };
+    }
+    if (index === 0 && ev.type !== 'meta') return { ok: false, reason: 'event 0 must be session metadata', events };
+    if (index > 0 && ev.t < events[index - 1].t) return { ok: false, reason: `timestamp moved backwards at event ${index}`, events };
     if (ev.prev !== prev) {
       return { ok: false, reason: `chain break at event ${ev.i}: prev-pointer mismatch`, events };
     }
     const expect = eventHash(prev, ev.i, ev.t, ev.type, ev.data);
     if (ev.hash !== expect) {
-      return { ok: false, reason: `hash mismatch at event ${ev.i} — event was tampered with or forged`, events };
+      return { ok: false, reason: `hash mismatch at event ${ev.i} — content changed without rebuilding the chain`, events };
     }
     prev = ev.hash;
   }
-  return { ok: true, events, count: events.length };
+  const complete = events[events.length - 1].type === 'exit';
+  return { ok: true, complete, events, count: events.length };
 }
 
 /**
@@ -189,6 +212,7 @@ function lastEvent(file) {
  * Wrap in withFileLock() when several processes may race.
  */
 function appendToChain(file, type, data) {
+  assertNotSymlink(file);
   const { data: scrubbed, count } = redactEventData(data);
   const last = lastEvent(file);
   const i = last ? last.i + 1 : 0;
@@ -208,14 +232,16 @@ function appendToChain(file, type, data) {
  */
 function withFileLock(file, fn) {
   const lock = `${file}.lock`;
+  assertNotSymlink(lock);
   fs.mkdirSync(path.dirname(file), { recursive: true }); // lock file lives next to the session
   const deadline = Date.now() + 5000;
   let acquired = false;
+  const token = `${process.pid}:${crypto.randomBytes(16).toString('hex')}`;
   for (;;) {
     let fd;
     try {
       fd = fs.openSync(lock, 'wx');
-      fs.writeSync(fd, String(process.pid));
+      fs.writeSync(fd, token);
       fs.closeSync(fd);
       acquired = true;
       break;
@@ -223,7 +249,10 @@ function withFileLock(file, fn) {
       if (e.code !== 'EEXIST') throw e;
       // stale lock from a crashed process? reclaim it
       try {
-        if (Date.now() - fs.statSync(lock).mtimeMs > 3000) { fs.unlinkSync(lock); continue; }
+        const owner = fs.readFileSync(lock, 'utf8').split(':')[0];
+        let alive = false;
+        try { process.kill(Number(owner), 0); alive = true; } catch { /* dead */ }
+        if (!alive && Date.now() - fs.statSync(lock).mtimeMs > 5000) { fs.unlinkSync(lock); continue; }
       } catch { /* vanished — retry */ }
       if (Date.now() > deadline) break;
       // Synchronous hooks still need to wait, but sleeping avoids burning a core.
@@ -233,7 +262,9 @@ function withFileLock(file, fn) {
   try {
     return fn(acquired);
   } finally {
-    if (acquired) { try { fs.unlinkSync(lock); } catch { /* already gone */ } }
+    if (acquired) {
+      try { if (fs.readFileSync(lock, 'utf8') === token) fs.unlinkSync(lock); } catch { /* already gone */ }
+    }
   }
 }
 
@@ -252,4 +283,4 @@ function newSessionFile(cwd, name) {
   return path.join(dir, `${stamp}-${process.pid}-${sequence}-${safe}.jsonl`);
 }
 
-module.exports = { GENESIS, VERSION, sha256, eventHash, Recorder, loadEvents, verifyChain, lastEvent, appendToChain, withFileLock, sessionsDir, newSessionFile };
+module.exports = { GENESIS, VERSION, sha256, eventHash, Recorder, loadEvents, verifyChain, lastEvent, appendToChain, withFileLock, sessionsDir, newSessionFile, assertNotSymlink };

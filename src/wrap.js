@@ -17,6 +17,7 @@ const DIM = '\x1b[2m';
 const CYAN = '\x1b[36m';
 const BOLD = '\x1b[1m';
 const RESET = '\x1b[0m';
+const MAX_PARTIAL_LINE = 1024 * 1024;
 
 function shellQuote(arg) {
   return `'${String(arg).replace(/'/g, `'"'"'`)}'`;
@@ -29,12 +30,13 @@ function shellQuote(arg) {
 function spawnSpec(commandArgs, usePty, terminalSize = {}) {
   if (!usePty) return { command: commandArgs[0], args: commandArgs.slice(1) };
 
-  if (process.platform === 'darwin' || process.platform.endsWith('bsd')) {
-    return { command: 'script', args: ['-q', '/dev/null', ...commandArgs] };
-  }
-
   const rows = Number.isInteger(terminalSize.rows) && terminalSize.rows > 0 ? terminalSize.rows : 24;
   const columns = Number.isInteger(terminalSize.columns) && terminalSize.columns > 0 ? terminalSize.columns : 80;
+  if (process.platform === 'darwin' || process.platform.endsWith('bsd')) {
+    const command = `stty rows ${rows} cols ${columns} 2>/dev/null; exec ${commandArgs.map(shellQuote).join(' ')}`;
+    return { command: 'script', args: ['-q', '/dev/null', 'sh', '-c', command] };
+  }
+
   // `script` writes to our capture pipe, so it cannot infer geometry from its
   // own stdout. Set the newly allocated slave PTY before starting the command.
   const command = `stty rows ${rows} cols ${columns} 2>/dev/null; exec ${commandArgs.map(shellQuote).join(' ')}`;
@@ -95,6 +97,11 @@ class LineRecorder {
       const rest = data.slice(start);
       this.parts.push(rest);
       this.length += rest.length;
+      if (this.length >= MAX_PARTIAL_LINE) {
+        this.emit(this.parts.join(''));
+        this.parts = [];
+        this.length = 0;
+      }
     }
   }
 
@@ -160,12 +167,37 @@ function wrap(commandArgs, opts = {}) {
         ...(usePty ? { COLUMNS: String(terminalSize.columns || 80), LINES: String(terminalSize.rows || 24) } : {}),
       },
       cwd: opts.cwd || process.cwd(),
+      detached: process.platform !== 'win32',
     });
 
     const outR = new LineRecorder(rec, 'stdout');
     const errR = new LineRecorder(rec, 'stderr');
     const t0 = Date.now();
     let done = false;
+    let requestedSignal = null;
+    let killTimer = null;
+    const killChild = (signal) => {
+      if (!child.pid) return;
+      try {
+        if (process.platform !== 'win32') process.kill(-child.pid, signal);
+        else child.kill(signal);
+      } catch { /* gone */ }
+    };
+    const forwardSignal = (signal) => {
+      if (done) return;
+      requestedSignal = signal;
+      rec.append('signal', { signal, source: 'parent' });
+      killChild(signal);
+      clearTimeout(killTimer);
+      killTimer = setTimeout(() => killChild('SIGKILL'), 2000);
+      killTimer.unref();
+    };
+    const onSigint = () => forwardSignal('SIGINT');
+    const onSigterm = () => forwardSignal('SIGTERM');
+    const onSighup = () => forwardSignal('SIGHUP');
+    process.on('SIGINT', onSigint);
+    process.on('SIGTERM', onSigterm);
+    process.on('SIGHUP', onSighup);
     const onResize = () => resizeChildPty(child.pid, {
       columns: process.stdout.columns || process.stderr.columns,
       rows: process.stdout.rows || process.stderr.rows,
@@ -175,12 +207,18 @@ function wrap(commandArgs, opts = {}) {
     child.stdout.on('data', (c) => {
       const s = c.toString('utf8');
       outR.push(s);
-      if (!opts.quiet) process.stdout.write(c);
+      if (!opts.quiet && !process.stdout.write(c)) {
+        child.stdout.pause();
+        process.stdout.once('drain', () => child.stdout.resume());
+      }
     });
     child.stderr.on('data', (c) => {
       const s = c.toString('utf8');
       errR.push(s);
-      if (!opts.quiet) process.stderr.write(c);
+      if (!opts.quiet && !process.stderr.write(c)) {
+        child.stderr.pause();
+        process.stderr.once('drain', () => child.stderr.resume());
+      }
     });
 
     // stdin: forward + record (raw mode when TTY so we see every keystroke).
@@ -193,9 +231,12 @@ function wrap(commandArgs, opts = {}) {
     let stdinAttached = false;
     const onStdinData = (d) => {
       const s = d.toString('utf8');
+      const control = Math.min(...['\x03', '\x04'].map((c) => { const i = s.indexOf(c); return i < 0 ? Infinity : i; }));
+      if (Number.isFinite(control) && control > 0 && child.stdin && child.stdin.writable) child.stdin.write(d.subarray(0, control));
       if (s.includes('\x03')) {
         rec.append('signal', { signal: 'SIGINT', source: 'keyboard' });
-        if (child.pid) { try { child.kill('SIGINT'); } catch { /* gone */ } }
+        requestedSignal = 'SIGINT';
+        killChild('SIGINT');
         return;
       }
       if (s.includes('\x04')) {
@@ -233,6 +274,10 @@ function wrap(commandArgs, opts = {}) {
     function finalize(code, signal, spawnError) {
       if (done) return;
       done = true;
+      clearTimeout(killTimer);
+      process.removeListener('SIGINT', onSigint);
+      process.removeListener('SIGTERM', onSigterm);
+      process.removeListener('SIGHUP', onSighup);
       process.stdout.removeListener('resize', onResize);
       detachStdin();
       if (spawnError) {
@@ -240,8 +285,9 @@ function wrap(commandArgs, opts = {}) {
       }
       outR.flush(); errR.flush();
       const durationMs = Date.now() - t0;
+      const finalCode = requestedSignal && code === 0 ? (requestedSignal === 'SIGINT' ? 130 : 143) : code;
       rec.append('exit', {
-        code,
+        code: finalCode,
         durationMs,
         signal: signal || undefined,
         spawnError: spawnError ? spawnError.message : undefined,
@@ -250,7 +296,7 @@ function wrap(commandArgs, opts = {}) {
       if (!opts.quiet) {
         process.stderr.write(`${DIM}${CYAN}⬢ agentbox${RESET}${DIM}: ${rec.i} events recorded · ${durationMs} ms · try: agentbox receipt${RESET}\n`);
       }
-      resolve({ file, exitCode: code, events: rec.i });
+      resolve({ file, exitCode: finalCode, events: rec.i });
     }
 
     child.on('error', (e) => finalize(127, null, e));

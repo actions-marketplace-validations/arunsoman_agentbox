@@ -11,7 +11,7 @@ const { wrap } = require('./wrap');
 const { replay, renderStatic } = require('./replay');
 const { receipt } = require('./receipt');
 const { clip } = require('./clip');
-const { summarize, fmtDuration } = require('./parse');
+const { summarize, fmtDuration, stripAnsi } = require('./parse');
 const { runHook, initClaude } = require('./adapters/claude');
 const { runMcpProxy, initMcp } = require('./adapters/mcp');
 
@@ -21,6 +21,7 @@ const DIM = '\x1b[2m';
 const GREEN = '\x1b[32m';
 const RED = '\x1b[31m';
 const RESET = '\x1b[0m';
+const safeTerminal = (s) => stripAnsi(String(s == null ? '' : s)).replace(/[\x00-\x1f\x7f-\x9f]/g, '');
 
 const HELP = `
 ${CYAN}${BOLD}⬢ agentbox v${VERSION}${RESET} — the black-box flight recorder for AI agents
@@ -37,7 +38,7 @@ ${BOLD}usage${RESET}: agentbox <command> [options]
   ${BOLD}replay${RESET} [file]               scrub through a session like security footage
   ${BOLD}receipt${RESET} [file] [--md|--json] one-page summary of what happened
   ${BOLD}clip${RESET} [file] [--from s --to s]  export a shareable, self-contained HTML clip
-  ${BOLD}verify${RESET} [file]               check the tamper-evident sha256 hash chain
+  ${BOLD}verify${RESET} [file]               check the local sha256 hash chain
   ${BOLD}help${RESET}                        show this help
 
 ${DIM}sessions live in ./.agentbox/sessions/ · zero deps · 100% local · no telemetry
@@ -101,16 +102,16 @@ function cmdList() {
     let chainReason = '';
     try {
       const res = verifyChain(f);
-      chainOk = res.ok;
-      chainReason = res.reason || '';
+      chainOk = res.ok && res.complete;
+      chainReason = res.reason || (res.complete ? '' : 'incomplete session');
       const stats = summarize(res.events);
-      meta = stats.name;
+      meta = safeTerminal(stats.name);
       dur = fmtDuration(stats.durationMs);
       code = String(stats.exitCode);
       n = res.events.length;
     } catch { /* skip details */ }
     const chain = chainOk ? `${GREEN}✓${RESET}` : `${RED}BROKEN${RESET}${chainReason ? ` ${DIM}(${chainReason})${RESET}` : ''}`;
-    process.stdout.write(`  ${DIM}${path.basename(f)}${RESET}\n    ${CYAN}${BOLD}${meta || '?'}${RESET}  ·  ${n} events · ${dur} · exit ${code === '0' ? GREEN + '0 ✓' : RED + code + RESET} · chain ${chain}\n`);
+    process.stdout.write(`  ${DIM}${safeTerminal(path.basename(f))}${RESET}\n    ${CYAN}${BOLD}${meta || '?'}${RESET}  ·  ${n} events · ${dur} · exit ${code === '0' ? GREEN + '0 ✓' : RED + code + RESET} · chain ${chain}\n`);
   }
   process.stdout.write(`\n${DIM}replay one: agentbox replay <file>${RESET}\n`);
 }
@@ -119,10 +120,10 @@ function cmdVerify(fileArg) {
   const file = resolveSession(fileArg);
   if (!file) { process.stderr.write('no session file found\n'); process.exitCode = 1; return; }
   const res = verifyChain(file);
-  if (res.ok) {
-    process.stdout.write(`${GREEN}✓ chain intact${RESET} — ${res.count} events, sha256 from genesis to tip\n  ${DIM}${file}${RESET}\n`);
+  if (res.ok && res.complete) {
+    process.stdout.write(`${GREEN}✓ local chain intact${RESET} — ${res.count} events, sha256 from genesis to tip\n  ${DIM}${safeTerminal(file)}${RESET}\n`);
   } else {
-    process.stdout.write(`${RED}✗ ${res.reason}${RESET}\n  ${DIM}${file}${RESET}\n`);
+    process.stdout.write(`${RED}✗ ${res.reason || 'session is incomplete (missing exit event)'}${RESET}\n  ${DIM}${file}${RESET}\n`);
     process.exitCode = 1;
   }
 }
@@ -233,6 +234,7 @@ function main() {
         to: flags.to != null ? Number(flags.to) : undefined,
         out: flags.out,
         force: flags.force,
+        overwrite: flags.overwrite,
       });
       if (out) process.stdout.write(`${GREEN}✓ clip saved${RESET} ${DIM}${out}${RESET} — open it, or drop it straight into a PR\n`);
       return;

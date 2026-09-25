@@ -7,7 +7,7 @@
  */
 const fs = require('fs');
 const path = require('path');
-const { verifyChain } = require('./chain');
+const { verifyChain, assertNotSymlink } = require('./chain');
 
 function esc(s) {
   return String(s)
@@ -19,17 +19,23 @@ function esc(s) {
 
 function clip(file, opts = {}) {
   const res = verifyChain(file);
-  if (!res.ok && !opts.force) {
-    process.stderr.write(`\x1b[31m⬢ agentbox: chain verification FAILED — ${res.reason}\x1b[0m\n`);
+  if ((!res.ok || !res.complete) && !opts.force) {
+    process.stderr.write(`\x1b[31m⬢ agentbox: chain verification FAILED — ${res.reason || 'session is incomplete'}\x1b[0m\n`);
     process.exitCode = 1;
     return null;
   }
   const events = res.events;
+  if (!events.length) { process.stderr.write('⬢ agentbox: cannot clip an empty tape\n'); process.exitCode = 1; return null; }
   const meta = events.find((e) => e.type === 'meta') || { data: {} };
   const t0 = events[0].t;
   const tN = events[events.length - 1].t;
   const from = opts.from != null ? t0 + opts.from * 1000 : t0;
   const to = opts.to != null ? t0 + opts.to * 1000 : tN;
+  if (!Number.isFinite(from) || !Number.isFinite(to) || from < t0 || to < from) {
+    process.stderr.write('⬢ agentbox: invalid clip range (use finite seconds with --from <= --to)\n');
+    process.exitCode = 1;
+    return null;
+  }
 
   const slim = [];
   for (const ev of events) {
@@ -42,10 +48,22 @@ function clip(file, opts = {}) {
     else if (ev.type === 'exit') { kind = 'exit'; text = `exit code ${d.code}`; }
     else if (ev.type === 'meta') { kind = 'meta'; text = d.cmd || ''; }
     else if (ev.type === 'signal') { kind = 'signal'; text = d.signal || ''; }
+    else if (ev.type === 'tool_call') { kind = 'tool'; text = `${d.name || 'tool'}${d.phase === 'end' ? ` → ${d.status || 'ok'}` : `(${JSON.stringify(d.input || {})})`}`; }
+    else if (ev.type === 'prompt') { kind = 'in'; text = d.text || ''; }
+    else if (ev.type === 'notification') { kind = 'notification'; text = d.message || ''; }
+    else if (ev.type === 'note') { kind = 'note'; text = d.message || ''; }
+    else if (ev.type === 'mcp_msg') { kind = 'mcp'; text = `${d.dir || ''} ${d.method || 'message'}`; }
+    kind = String(kind).replace(/[^a-z0-9_-]/gi, '').slice(0, 32) || 'out';
     slim.push({ rt: ev.t - t0, k: kind, x: String(text).slice(0, 2000) });
   }
 
   const outPath = opts.out || file.replace(/\.jsonl$/, '') + '.clip.html';
+  assertNotSymlink(outPath);
+  if (fs.existsSync(outPath) && !opts.overwrite) {
+    process.stderr.write(`⬢ agentbox: refusing to overwrite ${outPath} (pass --overwrite)\n`);
+    process.exitCode = 1;
+    return null;
+  }
   // Script elements are raw-text nodes: HTML entities such as &quot; are not
   // decoded there. Keep this as valid JSON and neutralize closing tags.
   const payload = JSON.stringify(slim)
@@ -93,7 +111,7 @@ function clip(file, opts = {}) {
   <h1>⬢ agentbox clip</h1>
   <div class="sub">session <b>${esc(meta.data.name || 'session')}</b> · command <code>${esc(meta.data.cmd || '?')}</code> · ${slim.length} events · recorded ${new Date(t0).toISOString()}</div>
   <div class="term">
-    <div class="bar"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span><span class="t">black box tape — tamper-evident chain ${res.ok ? 'intact ✓' : 'BROKEN ✗'}</span></div>
+    <div class="bar"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span><span class="t">black box tape — local integrity chain ${res.ok && res.complete ? 'complete ✓' : 'INCOMPLETE/BROKEN ✗'}</span></div>
     <div id="feed"></div>
     <div class="ctl">
       <button id="play">▶ play</button>
@@ -171,7 +189,7 @@ setCursor(0);
 </html>
 `;
 
-  fs.writeFileSync(outPath, html);
+  fs.writeFileSync(outPath, html, { flag: opts.overwrite ? 'w' : 'wx' });
   return outPath;
 }
 

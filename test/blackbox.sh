@@ -176,9 +176,9 @@ case_claude_init_is_idempotent_and_reversible() {
 case_claude_hook_records_a_passive_session() {
   local dir="$CASE_ROOT/claude-hook" session receipt
   mkdir -p "$dir"
-  printf '{"hook_event_name":"SessionStart","session_id":"bb-1","cwd":"%s","source":"startup"}\n' "$dir" | node "$CLI" hook claude
-  printf '{"hook_event_name":"PreToolUse","session_id":"bb-1","cwd":"%s","tool_name":"Write","tool_input":{"file_path":"src/hook.js"}}\n' "$dir" | node "$CLI" hook claude
-  printf '{"hook_event_name":"SessionEnd","session_id":"bb-1","cwd":"%s","reason":"done"}\n' "$dir" | node "$CLI" hook claude
+  printf '{"hook_event_name":"SessionStart","session_id":"bb-1","cwd":"%s","source":"startup"}\n' "$dir" | (cd "$dir" && node "$CLI" hook claude)
+  printf '{"hook_event_name":"PreToolUse","session_id":"bb-1","cwd":"%s","tool_name":"Write","tool_input":{"file_path":"src/hook.js"}}\n' "$dir" | (cd "$dir" && node "$CLI" hook claude)
+  printf '{"hook_event_name":"SessionEnd","session_id":"bb-1","cwd":"%s","reason":"done"}\n' "$dir" | (cd "$dir" && node "$CLI" hook claude)
   session=$(find "$dir/.agentbox/sessions" -name '*.jsonl' -print -quit) || return 1
   receipt=$(node "$CLI" receipt "$session" --json) || return 1
   contains "$receipt" '"adapter": "claude-code"' && contains "$receipt" 'src/hook.js'
@@ -199,10 +199,10 @@ case_tty_wrap_and_replay_interrupt() {
   command -v script >/dev/null || return 0
   local dir="$CASE_ROOT/tty" session status
   mkdir -p "$dir"
-  (cd "$dir" && script -qefc "node '$CLI' wrap --quiet -- sh -c 'stty size'" /dev/null >/dev/null) || return 1
+  (cd "$dir" && script -qefc "node '$CLI' wrap --quiet -- sh -c 'stty size; sleep 2'" /dev/null >/dev/null) || return 1
   session=$(find "$dir/.agentbox/sessions" -name '*.jsonl' -print -quit) || return 1
   grep -Eq '([0-9]+) ([0-9]+)' "$session" || return 1
-  { sleep 0.5; printf '\003'; } | timeout 5 script -qefc "node '$CLI' replay '$session'" /dev/null >/dev/null 2>&1
+  { sleep 0.1; printf '\003' || true; } | timeout 5 script -qefc "node '$CLI' replay '$session'" /dev/null >/dev/null 2>&1
   status=$?
   [ "$status" -eq 130 ] || [ "$status" -eq 0 ]
 }

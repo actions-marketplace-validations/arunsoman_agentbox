@@ -221,7 +221,6 @@ function summarize(events) {
   // de-dup helpers
   const uniq = (arr) => [...new Set(arr)];
   stats.commands = uniq(stats.commands);
-  stats.tools = uniq(stats.tools);
   stats.urls = uniq(stats.urls);
 
   // collapse file ops per path

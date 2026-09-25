@@ -20,7 +20,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const {
-  VERSION, loadEvents, verifyChain, appendToChain, withFileLock, sessionsDir,
+  VERSION, loadEvents, verifyChain, appendToChain, withFileLock, sessionsDir, assertNotSymlink,
 } = require('../chain');
 const { summarize, verdict } = require('../parse');
 const { markdownReceipt } = require('../receipt');
@@ -45,7 +45,10 @@ function slim(v, cap) {
   try {
     const j = JSON.stringify(v);
     if (j.length <= cap) return v;
-    return trunc(j, cap);
+    const keys = ['command', 'file_path', 'notebook_path', 'path', 'url', 'query', 'pattern'];
+    const summary = { _truncated: true };
+    for (const key of keys) if (v[key] != null) summary[key] = trunc(v[key], cap / 2);
+    return Object.keys(summary).length > 1 ? summary : trunc(j, cap);
   } catch { return trunc(String(v), cap); }
 }
 
@@ -76,16 +79,18 @@ function claudeSessionFile(cwd, sid) {
 function toolResponseIsError(resp) {
   if (!resp || typeof resp !== 'object') return false;
   if (resp.is_error === true || resp.isError === true) return true;
-  return typeof resp.error === 'string' && resp.error.length > 0;
+  return resp.error != null;
 }
 
 /** Write the auto receipt on SessionEnd (`.agentbox/receipts/<session>.md`). */
 function autoReceipt(cwd, file) {
   if (process.env.AGENTBOX_HOOKS_RECEIPT === '0') return;
   const res = verifyChain(file);
-  if (!res.ok) return;
+  if (!res.ok || !res.complete) return;
   const stats = summarize(res.events);
   const dir = path.join(cwd, '.agentbox', 'receipts');
+  const out = path.join(dir, path.basename(file).replace(/\.jsonl$/, '.md'));
+  assertNotSymlink(out);
   fs.mkdirSync(dir, { recursive: true });
   const md = [
     '# ⬢ agentbox — flight receipt (auto-generated on session end)',
@@ -95,7 +100,7 @@ function autoReceipt(cwd, file) {
     `> ${verdict(stats)}`,
     '',
   ].join('\n');
-  fs.writeFileSync(path.join(dir, path.basename(file).replace(/\.jsonl$/, '.md')), md);
+  fs.writeFileSync(out, md);
 }
 
 /**
@@ -105,7 +110,8 @@ function autoReceipt(cwd, file) {
 function recordHookEvent(ev) {
   const sid = ev.session_id || 'unknown';
   const sidSafe = String(sid).replace(/[^\w-]/g, '').slice(0, 64) || 'unknown';
-  const cwd = ev.cwd && typeof ev.cwd === 'string' && fs.existsSync(ev.cwd) ? ev.cwd : process.cwd();
+  // Hook payloads are untrusted input; never let them redirect filesystem writes.
+  const cwd = process.cwd();
   const file = claudeSessionFile(cwd, sid);
   const isNew = !fs.existsSync(file);
 
@@ -201,7 +207,8 @@ async function runHook() {
 /** Absolute, space-safe command string that lands inside settings.json hooks. */
 function hookCommand() {
   const bin = path.join(__dirname, '..', '..', 'bin', 'agentbox.js');
-  return `node "${bin}" ${HOOK_MARKER}`;
+  const quoted = `'${bin.replace(/'/g, `'"'"'`)}'`;
+  return `node ${quoted} ${HOOK_MARKER}`;
 }
 
 function settingsPath(opts) {
@@ -209,7 +216,8 @@ function settingsPath(opts) {
 }
 
 function entryIsOurs(entry) {
-  return entry && Array.isArray(entry.hooks) && entry.hooks.some((h) => h && typeof h.command === 'string' && h.command.includes(HOOK_MARKER));
+  const expected = hookCommand();
+  return entry && Array.isArray(entry.hooks) && entry.hooks.some((h) => h && h.type === 'command' && h.command === expected);
 }
 
 /**
@@ -219,7 +227,15 @@ function entryIsOurs(entry) {
  */
 function initClaude(opts = {}) {
   const file = settingsPath(opts);
+  assertNotSymlink(file);
   const existed = fs.existsSync(file);
+  try {
+    if (fs.lstatSync(file).isSymbolicLink()) {
+      process.stderr.write(`⬢ agentbox: refusing symlinked settings file ${file}\n`);
+      process.exitCode = 1;
+      return { file, changed: false };
+    }
+  } catch (e) { if (e.code !== 'ENOENT') throw e; }
   let settings = {};
   if (existed) {
     try { settings = JSON.parse(fs.readFileSync(file, 'utf8')); } catch (e) {
