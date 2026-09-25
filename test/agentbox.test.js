@@ -94,6 +94,28 @@ test('wrap: end-to-end records a real child process', async () => {
   assert.equal(exit.data.code, 0);
 });
 
+test('wrap: missing executable finalizes exactly once without an uncaught write', async () => {
+  const { wrap } = require('../src/wrap');
+  const dir = tmpdir();
+  const file = path.join(dir, 'missing.jsonl');
+  const r = await wrap(['agentbox-command-that-does-not-exist'], { file, quiet: true, cwd: dir });
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(r.exitCode, 127);
+  const res = verifyChain(file);
+  assert.equal(res.ok, true, res.reason);
+  assert.equal(res.events.filter((e) => e.type === 'exit').length, 1);
+  assert.match(res.events.find((e) => e.type === 'exit').data.spawnError, /ENOENT/);
+});
+
+test('new session filenames do not collide within the same second', () => {
+  const { newSessionFile } = require('../src/chain');
+  const dir = tmpdir();
+  const a = newSessionFile(dir, 'same-name');
+  const b = newSessionFile(dir, 'same-name');
+  assert.notEqual(a, b);
+  assert.match(path.basename(a), /same-name\.jsonl$/);
+});
+
 test('receipt: text + markdown render from a real session', async () => {
   const { wrap } = require('../src/wrap');
   const { receipt } = require('../src/receipt');
@@ -117,6 +139,12 @@ test('clip: produces self-contained HTML', async () => {
   assert.match(html, /<!doctype html>/i);
   assert.match(html, /payload-json/);
   assert.match(html, /clip me/);
+  const payloadPos = html.indexOf('<script type="application/json" id="payload-json">');
+  const runtimePos = html.indexOf('<script>', payloadPos);
+  assert.ok(payloadPos >= 0 && payloadPos < runtimePos, 'payload must exist before runtime executes');
+  const payload = html.slice(html.indexOf('>', payloadPos) + 1, html.indexOf('</script>', payloadPos));
+  const events = JSON.parse(payload);
+  assert.ok(events.some((event) => /clip me/.test(event.x)));
 });
 
 test('replay headless: renders a static frame', async () => {
@@ -187,6 +215,18 @@ function spawnCLI(args, cwd, input) {
     else child.stdin.end();
   });
 }
+
+test('CLI reports a missing requested session instead of opening the newest', async () => {
+  const dir = tmpdir();
+  const sessions = path.join(dir, '.agentbox', 'sessions');
+  fs.mkdirSync(sessions, { recursive: true });
+  const rec = new Recorder(path.join(sessions, 'existing.jsonl'), { name: 'existing', cmd: 'true' });
+  rec.append('exit', { code: 0, durationMs: 1 });
+  rec.close();
+  const result = await spawnCLI(['verify', 'missing.jsonl'], dir);
+  assert.equal(result.code, 1);
+  assert.match(result.err, /no session file found/);
+});
 
 test('hook adapter: passive session from simulated Claude Code hooks', async () => {
   const dir = tmpdir();

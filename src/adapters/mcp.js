@@ -6,7 +6,7 @@
  *   agentbox mcp -- npx -y @modelcontextprotocol/server-everything
  *
  * Point your MCP client (Claude Desktop, Cursor, Claude Code, any harness)
- * at agentbox instead of the server. Mayday spawns the real server, forwards
+ * at agentbox instead of the server. Agentbox spawns the real server, forwards
  * every JSON-RPC message verbatim, and writes a hash-chained tape of:
  *
  *   mcp_msg   every message, both directions (method + id + preview)

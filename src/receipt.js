@@ -45,7 +45,7 @@ function sep() {
 
 function textReceipt(stats, chainOk) {
   const lines = [];
-  const title = '⬢  M A Y D A Y   R E C E I P T';
+  const title = '⬢  A G E N T B O X   R E C E I P T';
   lines.push('');
   lines.push(`${CYAN}${BOLD}${title.padStart(Math.floor((W + title.length) / 2))}${RESET}`);
   lines.push(`┌${'─'.repeat(W - 2)}┐`);

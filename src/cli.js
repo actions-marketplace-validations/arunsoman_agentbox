@@ -73,7 +73,12 @@ function findSessions() {
 }
 
 function resolveSession(fileArg) {
-  if (fileArg && fs.existsSync(fileArg)) return fileArg;
+  if (fileArg) {
+    if (fs.existsSync(fileArg)) return fileArg;
+    const inSessions = path.join(sessionsDir(), path.basename(fileArg));
+    if (fs.existsSync(inSessions)) return inSessions;
+    return null;
+  }
   const sessions = findSessions();
   if (!sessions.length) return null;
   return sessions[0]; // most recent

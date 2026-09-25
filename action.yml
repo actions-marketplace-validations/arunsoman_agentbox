@@ -6,7 +6,7 @@ branding:
 
 inputs:
   session:
-    description: 'Path to a .jsonl session file (or glob-first match). Defaults to newest in ./.agentbox/sessions.'
+    description: 'Path to a .jsonl session file. Defaults to newest in ./.agentbox/sessions.'
     required: false
   header:
     description: 'Comment header'
@@ -21,10 +21,11 @@ runs:
         node-version: 20
 
     - name: Build receipt
-      id: receipt
       shell: bash
+      env:
+        INPUT_SESSION: ${{ inputs.session }}
       run: |
-        SESSION="${{ inputs.session }}"
+        SESSION="$INPUT_SESSION"
         if [ -z "$SESSION" ]; then
           SESSION=$(ls -t .agentbox/sessions/*.jsonl 2>/dev/null | head -1 || true)
         fi
@@ -33,15 +34,16 @@ runs:
           exit 1
         fi
         node "${{ github.action_path }}/bin/agentbox.js" receipt "$SESSION" --md > agentbox-receipt.md
-        echo "session=$SESSION" >> "$GITHUB_OUTPUT"
 
     - name: Comment on PR
       if: github.event_name == 'pull_request'
       uses: actions/github-script@v7
+      env:
+        INPUT_HEADER: ${{ inputs.header }}
       with:
         script: |
           const fs = require('fs');
-          const body = `${{ inputs.header }}\n\n` + fs.readFileSync('agentbox-receipt.md', 'utf8');
+          const body = process.env.INPUT_HEADER + '\n\n' + fs.readFileSync('agentbox-receipt.md', 'utf8');
           await github.rest.issues.createComment({
             owner: context.repo.owner,
             repo: context.repo.repo,

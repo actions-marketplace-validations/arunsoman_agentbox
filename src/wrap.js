@@ -94,6 +94,7 @@ function wrap(commandArgs, opts = {}) {
     const outR = new LineRecorder(rec, 'stdout');
     const errR = new LineRecorder(rec, 'stderr');
     const t0 = Date.now();
+    let done = false;
 
     child.stdout.on('data', (c) => {
       const s = c.toString('utf8');
@@ -153,26 +154,32 @@ function wrap(commandArgs, opts = {}) {
 
     attachStdin();
 
-    child.on('error', (e) => {
+    function finalize(code, signal, spawnError) {
+      if (done) return;
+      done = true;
       detachStdin();
-      rec.append('out', { stream: 'stderr', kind: 'plain', text: `agentbox: failed to spawn: ${e.message}` });
+      if (spawnError) {
+        rec.append('out', { stream: 'stderr', kind: 'plain', text: `agentbox: failed to spawn: ${spawnError.message}` });
+      }
       outR.flush(); errR.flush();
-      rec.append('exit', { code: 127, durationMs: Date.now() - t0, spawnError: e.message });
-      rec.close();
-      resolve({ file, exitCode: 127, events: rec.i });
-    });
-
-    child.on('close', (code, signal) => {
-      detachStdin();
-      outR.flush();
-      errR.flush();
       const durationMs = Date.now() - t0;
-      rec.append('exit', { code: code == null ? (signal ? -1 : 1) : code, durationMs, signal });
+      rec.append('exit', {
+        code,
+        durationMs,
+        signal: signal || undefined,
+        spawnError: spawnError ? spawnError.message : undefined,
+      });
       rec.close();
       if (!opts.quiet) {
         process.stderr.write(`${DIM}${CYAN}⬢ agentbox${RESET}${DIM}: ${rec.i} events recorded · ${durationMs} ms · try: agentbox receipt${RESET}\n`);
       }
-      resolve({ file, exitCode: code == null ? 1 : code, events: rec.i });
+      resolve({ file, exitCode: code, events: rec.i });
+    }
+
+    child.on('error', (e) => finalize(127, null, e));
+
+    child.on('close', (code, signal) => {
+      finalize(code == null ? (signal ? -1 : 1) : code, signal);
     });
   });
 }

@@ -4,4 +4,3 @@ node_modules/
 .agentbox/sessions/*.clip.html
 coverage/
 .agentbox/sessions/*.jsonl
-.mayday/sessions/*.jsonl

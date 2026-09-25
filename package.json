@@ -25,7 +25,7 @@
     "action.yml",
     "README.md",
     "LICENSE",
-    "scripts"
+    "scripts/preflight.sh"
   ],
   "repository": {
     "type": "git",

@@ -117,7 +117,7 @@
   <div class="wrap">
     <div class="kicker">// flight recorder for ai agents</div>
     <h1>Your agents have root.<br><span class="mint">Who's watching?</span></h1>
-    <p class="sub">AGENTBOX straps a <b>black box</b> to any command or AI agent — no SDK, no cloud, no code changes. Every tool call, file edit, and URL hit lands on a <b>tamper-evident tape</b> you can scrub like security footage. When your agent terrifies you at 2am, you'll have the evidence.</p>
+    <p class="sub">AGENTBOX straps a <b>black box</b> to any command or AI agent — no SDK, no cloud, no code changes. Every tool call, file edit, and URL hit lands on a <b>tamper-evident tape</b> you can scrub like security footage. When your agent terrifies you at 2am, you'll have an integrity-checked record.</p>
     <div class="cta">
       <a class="btn" href="https://github.com/arunsoman/agentbox">★ star on github</a>
       <span class="btn ghost" id="copyNpx">npx agentbox-cli demo — click to copy</span>
@@ -142,10 +142,10 @@
 <section id="why">
   <div class="wrap">
     <h2>The question nobody can answer<span class="mint"> yet</span></h2>
-    <p class="lead">2026 made software agent-native: agents run shells, edit files, hit APIs, ship to prod. Frameworks gave them memory, harnesses, tools. Nobody gave them a flight recorder. So when something breaks, you get a story — not evidence.</p>
+    <p class="lead">2026 made software agent-native: agents run shells, edit files, hit APIs, ship to prod. Frameworks gave them memory, harnesses, tools. Nobody gave them a flight recorder. So when something breaks, you need a record you can inspect.</p>
     <div class="grid">
       <div class="card reveal"><span class="ico">📼</span><h3>Record anything</h3><p><code>agentbox wrap -- anything</code>. Wraps the process, captures stdout/stderr/stdin, classifies tool calls, file ops, shell commands, URLs. Zero code changes in the wrapped program.</p></div>
-      <div class="card reveal"><span class="ico">🔐</span><h3>Tamper-evident tape</h3><p>Every event is sha256-chained, genesis to tip. Edit one character and <code>agentbox verify</code> pins the exact forged event. Logs are opinions; chains are evidence.</p></div>
+      <div class="card reveal"><span class="ico">🔐</span><h3>Tamper-evident tape</h3><p>Every event is sha256-chained, genesis to tip. Edit one character without rebuilding the chain and <code>agentbox verify</code> pins the changed event. Unsigned local tapes provide integrity checks, not independent proof of origin.</p></div>
       <div class="card reveal"><span class="ico">🧾</span><h3>Receipts, not dumps</h3><p>One page a human can scan in five seconds: tool calls, files touched, deletions flagged, URLs hit, and the deadpan metric — <i>humans consulted: 0</i>.</p></div>
       <div class="card reveal"><span class="ico">🎬</span><h3>Replay like footage</h3><p>Interactive TUI scrubber with a timeline of markers. Play at 1–64×, jump to the exact moment, step event by event. Headless mode renders frames for CI and GIFs.</p></div>
       <div class="card reveal"><span class="ico">✂️</span><h3>Shareable clips</h3><p>Export any time range as one self-contained HTML file. Drop it into a PR, an incident review, or the group chat. Works offline, forever.</p></div>
@@ -208,7 +208,7 @@
     <h2>Ten seconds to black box<span class="mint">.</span></h2>
     <p class="lead">No install, no config, no account. If it runs in a terminal, it can wear a recorder.</p>
     <div class="steps">
-      <div class="step reveal"><span class="n">STEP 01</span><h3>Watch the demo</h3><p>A scripted agent deploys to prod, edits config, emails the board. Mayday records everything, then prints the receipt.</p></div>
+      <div class="step reveal"><span class="n">STEP 01</span><h3>Watch the demo</h3><p>A scripted agent deploys to prod, edits config, emails the board. Agentbox records everything, then prints the receipt.</p></div>
       <div class="step reveal"><span class="n">STEP 02</span><h3>Pick your tap</h3><p>Wrap it: <code>agentbox wrap -- anything</code>. Or skip the wrapper — <code>agentbox init claude</code> hooks every Claude Code session passively, and <code>agentbox mcp --</code> wire-taps any MCP server's JSON-RPC.</p></div>
       <div class="step reveal"><span class="n">STEP 03</span><h3>Ship the receipt</h3><p>Add the GitHub Action and every agent-touched PR arrives with its flight receipt stapled to it.</p></div>
     </div>
@@ -234,8 +234,8 @@
 <span class="p5">// hash = sha256(prev ‖ i ‖ t ‖ type ‖ data)</span>
 <span class="p5">// edit anything → verify() fails at that index</span></pre></div>
       <table class="faq">
-        <tr><td>Does it work with Claude Code / Cursor / OpenClaw?</td><td>Yes — anything in a terminal can be wrapped. First-class MCP &amp; Claude Code hooks are on the roadmap.</td></tr>
-        <tr><td>Isn't this just logging?</td><td>Logs are text files. This is chain of custody: hash-linked, verifiable, classified, replayable, shareable.</td></tr>
+        <tr><td>Does it work with Claude Code / Cursor / OpenClaw?</td><td>Yes — anything in a terminal can be wrapped, with first-class Claude Code hooks and an MCP wire-tap adapter built in.</td></tr>
+        <tr><td>Isn't this just logging?</td><td>It adds hash-linked integrity checks, classification, replay, receipts, and shareable clips to the raw record.</td></tr>
         <tr><td>Why not a SaaS dashboard?</td><td>The answer to "can I trust my agent" shouldn't be "trust this vendor too." Your black box lives in your repo.</td></tr>
         <tr><td>What does it cost?</td><td>MIT, free forever. The receipt for this decision says "humans consulted: 2."</td></tr>
       </table>

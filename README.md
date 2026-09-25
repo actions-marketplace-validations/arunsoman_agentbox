@@ -40,7 +40,7 @@ agentbox wrap --name prod-deploy -- node agent.js "deploy the release"
 Every session ends with a one-page flight receipt. This is **real output** from `agentbox demo`:
 
 ```
-           ⬢  M A Y D A Y   R E C E I P T
+         ⬢  A G E N T B O X   R E C E I P T
 ┌──────────────────────────────────────────────────┐
 │ session                 demo-deploy              │
 │ command                 node examples/fake-agen… │
@@ -80,7 +80,7 @@ uneventful flight. the best kind.
 
 Keys: `[space]` play/pause · `[←/→]` step event · `[j/k]` ±10s · `[[/]]` speed · `[g/G]` start/end · `[q]` quit
 
-## 🔐 The tape cannot lie
+## 🔐 Tamper-evident tapes
 
 Every event is hash-chained — each line commits to the previous one, Genesis to tip:
 
@@ -95,7 +95,7 @@ $ agentbox verify
 ✗ hash mismatch at event 7 — event was tampered with or forged
 ```
 
-That makes the session file *evidence*, not a log: post-mortems, compliance, "the agent did it / no it didn't" arguments in PRs — settled.
+This detects accidental corruption and edits that do not rebuild the chain. Because the chain is not signed or externally anchored, someone who can rewrite the whole file can also recompute its hashes. Treat it as an integrity check and audit aid—not cryptographic proof of origin.
 
 ## 🛡️ Security & privacy
 
@@ -195,7 +195,7 @@ The hook handler is engineered to be invisible: exits 0 even when agentbox itsel
 
 ### MCP — the wire tap between agent and tools
 
-An agent's *real* capability boundary is its MCP servers. Mayday runs any server behind a recording proxy:
+An agent's *real* capability boundary is its MCP servers. Agentbox runs any server behind a recording proxy:
 
 ```
 ┌────────┐  JSON-RPC   ┌─────────────┐  JSON-RPC   ┌──────────────┐
@@ -211,20 +211,24 @@ agentbox init mcp -- npx -y @modelcontextprotocol/server-everything   # prints c
 
 Point any MCP client at agentbox instead of the server — Claude Desktop, Cursor, Claude Code (`.mcp.json`), any harness. The proxy forwards messages verbatim (zero protocol awareness needed by the server) and hash-chains every `tools/call`: arguments before, result after, duration between, error status included. `agentbox verify` works on wire taps exactly like wrapped flights.
 
-> Wrap = capture the terminal. Hooks = capture the session. Wire tap = capture the protocol. Same tape, same receipts, same proof.
+> Wrap = capture the terminal. Hooks = capture the session. Wire tap = capture the protocol. Same tape, same receipts, same integrity checks.
 
 ## 🤖 The GitHub Action
 
 Post a flight receipt on every PR an agent touches:
 
 ```yaml
+permissions:
+  issues: write
+
+steps:
 - uses: arunsoman/agentbox@v1
   if: always()
   with:
     session: .agentbox/sessions/deploy.jsonl   # optional, defaults to newest
 ```
 
-The PR gets a markdown receipt — tool calls, files touched, exit code, chain status. Reviewers see what the agent did *before* they read a single diff.
+The PR gets a markdown receipt — tool calls, files touched, exit code, chain status. Reviewers see what the agent did *before* they read a single diff. Workflows triggered from forks normally receive a read-only token and cannot post comments; use a separately reviewed workflow if fork comments are required.
 
 ## 🧠 How it works
 
@@ -275,7 +279,7 @@ node --test                 # nothing to install. there is nothing to install.
 
 ## 🤝 Contributing
 
-Three hard rules: **zero runtime deps**, **100% local**, **the tape cannot lie**. Everything else is negotiable. See [CONTRIBUTING.md](CONTRIBUTING.md).
+Three hard rules: **zero runtime deps**, **100% local**, **never silently weaken tape integrity**. Everything else is negotiable. See [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## FAQ
 
@@ -283,7 +287,7 @@ Three hard rules: **zero runtime deps**, **100% local**, **the tape cannot lie**
 Three ways, all first-class: `agentbox wrap -- <your agent command>` for anything in a terminal, `agentbox init claude` for passive Claude Code capture, and `agentbox mcp -- <server>` for any MCP client. Same tape underneath.
 
 **Isn't this just logging?**
-Logging is a text file. AGENTBOX is a *chain of custody*: hash-linked, verifiable, classified, replayable, and shareable as a clip. And it's universal — one recorder for every agent, not one per framework.
+Logging is usually unstructured text. AGENTBOX adds a hash-linked integrity check, classification, replay, and shareable clips. It is universal—one recorder for every agent, not one per framework—but an unsigned local tape is not independently authenticated.
 
 **Why not a SaaS dashboard?**
 Because the answer to "can I trust my agent" should not be "trust this vendor too." Your black box lives in your repo, works offline forever, and can be audited in an afternoon.

@@ -187,11 +187,14 @@ function sessionsDir(cwd) {
   return path.join(cwd || process.cwd(), '.agentbox', 'sessions');
 }
 
+let sessionSequence = 0;
+
 function newSessionFile(cwd, name) {
   const dir = sessionsDir(cwd);
-  const stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+  const stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 23);
   const safe = (name || 'session').replace(/[^\w.-]+/g, '-').slice(0, 48);
-  return path.join(dir, `${stamp}-${safe}.jsonl`);
+  const sequence = sessionSequence++;
+  return path.join(dir, `${stamp}-${process.pid}-${sequence}-${safe}.jsonl`);
 }
 
 module.exports = { GENESIS, VERSION, sha256, eventHash, Recorder, loadEvents, verifyChain, lastEvent, appendToChain, withFileLock, sessionsDir, newSessionFile };
