@@ -7,7 +7,7 @@
  */
 
 // ANSI escape sequences (colors etc.) — stripped before classification
-const ANSI_RE = /\x1b(?:\[[0-9;]*[A-HJKSTfmnsu]|\][^\x07]*(?:\x07|\x1b\\)|[P^_].*?\x1b\\)/g;
+const ANSI_RE = /\x1b(?:\[[?0-9;:><]*[ -/]*[@-~]|\][^\x07]*(?:\x07|\x1b\\)|[P^_].*?\x1b\\)/g;
 
 function stripAnsi(s) {
   return String(s || '').replace(ANSI_RE, '');
@@ -21,6 +21,8 @@ const TOOL_RE = /^\[(?:TOOL|tool|Tool)\]\s*(.+)$/;
 
 // File writes/edits/deletes mentioned in prose or tool output
 const FILEOP_RE = /\b(wrote|created|edited|deleted|removed|modified|renamed|overwrote)\b\s+(?:the\s+)?(?:file\s+)?([\w./~\\-]+\.[A-Za-z0-9]{1,10})/i;
+const FILE_GROUP_RE = /\b(wrote|created|edited|deleted|removed|modified|renamed|overwrote)\b\s+\d+\s+files?\b/i;
+const FILE_GROUP_ITEM_RE = /[└├]\s*([\w./~\\-]+\.[A-Za-z0-9]{1,10})\s*\(/;
 
 // File ops embedded in tool calls, e.g. write(src/deploy.sh — 42 lines)
 const TOOL_FILE_RE = /\b(write|edit|create|delete|remove|overwrite|patch|update)\s*\(\s*[\"']?([\w./~\\-]+\.[A-Za-z0-9]{1,10})\b/i;
@@ -134,22 +136,23 @@ function summarize(events) {
     toolErrors: 0,
   };
   const endOnlyNames = [];
+  let groupedFileOp = null;
+  let groupedFileUntil = 0;
 
   for (const ev of events) {
     stats.byType[ev.type] = (stats.byType[ev.type] || 0) + 1;
     if (ev.type === 'out') {
       const d = ev.data || {};
       const kind = d.kind || 'plain';
+      const clean = stripAnsi(d.text || '');
       stats.byKind[kind] = (stats.byKind[kind] || 0) + 1;
       if (d.stream === 'stderr') stats.stderrLines += 1;
       stats.outputBytes += Buffer.byteLength(String(d.text != null ? d.text : (d.detail || '')), 'utf8');
       if (kind === 'cmd') {
-        const clean = stripAnsi(d.text || '');
         const m = clean.match(CMD_RE);
         stats.commands.push(m ? m[1].trim() : clean);
       }
       if (kind === 'tool') {
-        const clean = stripAnsi(d.text || '');
         const m = clean.match(TOOL_RE);
         const toolDetail = m ? m[1].trim() : (d.detail || clean);
         stats.tools.push(toolDetail);
@@ -157,7 +160,19 @@ function summarize(events) {
         const tf = toolDetail.match(TOOL_FILE_RE);
         if (tf) stats.files.push({ op: VERB_MAP[tf[1].toLowerCase()] || tf[1].toLowerCase(), path: tf[2] });
       }
-      if (kind === 'file' && d.detail && d.detail.path) stats.files.push({ op: d.detail.op, path: d.detail.path });
+      if (kind === 'file') {
+        const detail = d.detail && d.detail.path ? d.detail : classifyLine(d.text || '').detail;
+        if (detail && detail.path) stats.files.push({ op: detail.op, path: detail.path });
+      }
+      const group = clean.match(FILE_GROUP_RE);
+      if (group) {
+        groupedFileOp = group[1].toLowerCase();
+        groupedFileUntil = ev.t + 10000;
+      } else if (ev.t > groupedFileUntil) {
+        groupedFileOp = null;
+      }
+      const groupItem = groupedFileOp && clean.match(FILE_GROUP_ITEM_RE);
+      if (groupItem) stats.files.push({ op: groupedFileOp, path: groupItem[1] });
       // URLs observed anywhere in output (stripped of ANSI)
       const scan = stripAnsi([typeof d.detail === 'string' ? d.detail : '', typeof d.text === 'string' ? d.text : ''].join(' '));
       const u = scan.match(URL_RE);
@@ -248,4 +263,4 @@ function verdict(stats) {
   return 'black box recovered. details below.';
 }
 
-module.exports = { classifyLine, summarize, fmtDuration, fmtBytes, verdict, stripAnsi, toolCallLabel, inputPreview, opForToolName, CMD_RE, TOOL_RE, FILEOP_RE, TOOL_FILE_RE, URL_RE };
+module.exports = { classifyLine, summarize, fmtDuration, fmtBytes, verdict, stripAnsi, toolCallLabel, inputPreview, opForToolName, CMD_RE, TOOL_RE, FILEOP_RE, FILE_GROUP_RE, FILE_GROUP_ITEM_RE, TOOL_FILE_RE, URL_RE };

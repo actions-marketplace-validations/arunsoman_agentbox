@@ -46,13 +46,14 @@ your agent has root. who's watching?${RESET}
 
 function parseFlags(args) {
   const flags = { _: [] };
+  const valueFlags = new Set(['name', 'from', 'to', 'out', 'tail']);
   for (let i = 0; i < args.length; i++) {
     const a = args[i];
     if (a === '--') { flags._.push(...args.slice(i + 1)); break; }
     if (a.startsWith('--')) {
       const key = a.slice(2);
       const next = args[i + 1];
-      if (next != null && !next.startsWith('--')) { flags[key] = next; i++; }
+      if (valueFlags.has(key) && next != null && !next.startsWith('--')) { flags[key] = next; i++; }
       else flags[key] = true;
     } else if (a === '-md') { flags.md = true; }
     else if (a === '-json') { flags.json = true; }
@@ -96,16 +97,20 @@ function cmdList() {
     let dur = '?';
     let code = '?';
     let n = 0;
+    let chainOk = false;
+    let chainReason = '';
     try {
       const res = verifyChain(f);
+      chainOk = res.ok;
+      chainReason = res.reason || '';
       const stats = summarize(res.events);
       meta = stats.name;
       dur = fmtDuration(stats.durationMs);
       code = String(stats.exitCode);
       n = res.events.length;
     } catch { /* skip details */ }
-    const ok = '✓';
-    process.stdout.write(`  ${DIM}${path.basename(f)}${RESET}\n    ${CYAN}${BOLD}${meta || '?'}${RESET}  ·  ${n} events · ${dur} · exit ${code === '0' ? GREEN + '0 ✓' : RED + code + RESET} · chain ${GREEN}${ok}${RESET}\n`);
+    const chain = chainOk ? `${GREEN}✓${RESET}` : `${RED}BROKEN${RESET}${chainReason ? ` ${DIM}(${chainReason})${RESET}` : ''}`;
+    process.stdout.write(`  ${DIM}${path.basename(f)}${RESET}\n    ${CYAN}${BOLD}${meta || '?'}${RESET}  ·  ${n} events · ${dur} · exit ${code === '0' ? GREEN + '0 ✓' : RED + code + RESET} · chain ${chain}\n`);
   }
   process.stdout.write(`\n${DIM}replay one: agentbox replay <file>${RESET}\n`);
 }
@@ -249,5 +254,7 @@ function main() {
 }
 
 module.exports = main;
+module.exports.parseFlags = parseFlags;
+module.exports.cmdList = cmdList;
 
 if (require.main === module) main();

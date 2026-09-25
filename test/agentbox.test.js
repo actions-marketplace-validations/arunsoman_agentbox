@@ -79,6 +79,21 @@ test('classifyLine: tool, cmd, file, net, plain', () => {
   assert.equal(classifyLine('plain output line').kind, 'plain');
 });
 
+test('CLI parser does not consume filenames after boolean flags', () => {
+  const { parseFlags } = require('../src/cli');
+  assert.deepEqual(parseFlags(['--headless', 'session.jsonl']), { _: ['session.jsonl'], headless: true });
+  assert.deepEqual(parseFlags(['--force', 'session.jsonl']), { _: ['session.jsonl'], force: true });
+  assert.deepEqual(parseFlags(['--name', 'flight', 'node']), { _: ['node'], name: 'flight' });
+});
+
+test('MCP response helpers preserve ID types and recognize JSON-RPC errors', () => {
+  const { requestKey, responseStatus } = require('../src/adapters/mcp');
+  assert.notEqual(requestKey(1), requestKey('1'));
+  assert.equal(responseStatus({ id: 1, error: { code: -32603, message: 'failed' } }), 'error');
+  assert.equal(responseStatus({ id: 1, result: { isError: true } }), 'error');
+  assert.equal(responseStatus({ id: 1, result: {} }), 'ok');
+});
+
 test('line recorder assembles a large line from many chunks', () => {
   const { LineRecorder } = require('../src/wrap');
   const seen = [];
@@ -86,6 +101,15 @@ test('line recorder assembles a large line from many chunks', () => {
   for (let i = 0; i < 2000; i++) line.push('abcd');
   line.push('\nnext\n');
   assert.deepEqual(seen, ['abcd'.repeat(2000), 'next']);
+});
+
+test('line recorder persists classified file details', () => {
+  const { LineRecorder } = require('../src/wrap');
+  const appended = [];
+  const recorder = { append: (type, data) => appended.push({ type, data }) };
+  const lines = new LineRecorder(recorder, 'stdout');
+  lines.push('\x1b[1mEdited\x1b[0m src/replay.js\n');
+  assert.deepEqual(appended[0].data.detail, { op: 'edited', path: 'src/replay.js' });
 });
 
 test('summarize: rolls up a session', () => {
@@ -107,6 +131,32 @@ test('summarize: rolls up a session', () => {
   assert.equal(stats.humansConsulted, 1);
   assert.equal(stats.exitCode, 0);
   assert.equal(stats.durationMs, 1500);
+});
+
+test('summarize: recovers file details from wrapped terminal output', () => {
+  const events = [
+    { type: 'meta', t: 1, data: { name: 'terminal', cmd: 'codex' } },
+    { type: 'out', t: 2, data: { kind: 'file', text: '\x1b[1mEdited\x1b[0m src/replay.js (+2 -1)' } },
+    { type: 'out', t: 3, data: { kind: 'plain', text: '\x1b[1mEdited\x1b[0m 2 files (+4 -2)' } },
+    { type: 'out', t: 4, data: { kind: 'plain', text: '  └ src/parse.js (+2 -1)' } },
+    { type: 'out', t: 5, data: { kind: 'plain', text: '  └ test/agentbox.test.js (+2 -1)' } },
+  ];
+  const stats = summarize(events);
+  assert.deepEqual(stats.files.map((f) => f.path).sort(), [
+    'src/parse.js', 'src/replay.js', 'test/agentbox.test.js',
+  ]);
+  assert.ok(stats.files.every((f) => f.ops.includes('edited')));
+});
+
+test('summarize: grouped file context expires before unrelated tree output', () => {
+  const events = [
+    { type: 'out', t: 1, data: { kind: 'plain', text: 'Edited 2 files (+4 -2)' } },
+    { type: 'out', t: 2, data: { kind: 'plain', text: '  └ src/first.js (+2 -1)' } },
+    ...Array.from({ length: 40 }, (_, i) => ({ type: 'out', t: 3 + i, data: { kind: 'plain', text: `unrelated ${i}` } })),
+    { type: 'out', t: 11002, data: { kind: 'plain', text: '  └ docs/not-edited.md (details)' } },
+  ];
+  const stats = summarize(events);
+  assert.deepEqual(stats.files.map((f) => f.path), ['src/first.js']);
 });
 
 test('wrap: end-to-end records a real child process', async () => {
@@ -162,6 +212,20 @@ test('wrap: interactive mode propagates terminal geometry', async (t) => {
   const output = res.events.filter((e) => e.type === 'out').map((e) => e.data.text).join('\n');
   assert.match(output, /"columns":117/);
   assert.match(output, /"rows":41/);
+});
+
+test('wrap: live PTY resize updates terminal geometry', async (t) => {
+  if (process.platform !== 'linux') return t.skip('live resize helper is Linux-only');
+  const { spawn } = require('child_process');
+  const { resizeChildPty } = require('../src/wrap');
+  const child = spawn('script', ['-qefc', "sleep 0.3; stty size", '/dev/null'], { stdio: ['pipe', 'pipe', 'pipe'] });
+  let output = '';
+  child.stdout.on('data', (chunk) => { output += chunk; });
+  await new Promise((resolve) => setTimeout(resolve, 100));
+  assert.equal(resizeChildPty(child.pid, { rows: 41, columns: 117 }), true);
+  const code = await new Promise((resolve) => child.on('close', resolve));
+  assert.equal(code, 0);
+  assert.match(output, /41 117/);
 });
 
 test('wrap: missing executable finalizes exactly once without an uncaught write', async () => {
@@ -227,6 +291,56 @@ test('replay headless: renders a static frame', async () => {
   const frame = renderStatic(res.events, { width: 90 });
   assert.match(frame, /AGENTBOX FLIGHT RECORD/);
   assert.match(frame, /deploy/);
+});
+
+test('replay TUI filters terminal controls, blank rows, and duplicate redraws', () => {
+  const { visibleEventRows } = require('../src/replay');
+  const events = [
+    { type: 'out', t: 1, data: { text: '\x1b[2J\x1b[H', kind: 'plain' } },
+    { type: 'out', t: 2, data: { text: '\x1b[31mworking\x1b[0m', kind: 'plain' } },
+    { type: 'out', t: 3, data: { text: '\x1b[4;1Hworking', kind: 'plain' } },
+    { type: 'out', t: 4, data: { text: 'done', kind: 'plain' } },
+  ];
+  const rows = visibleEventRows(events, events.length - 1, 10);
+  assert.deepEqual(rows.map((row) => row.text), ['working', 'done']);
+});
+
+test('replay TUI coalesces adjacent human keystrokes', () => {
+  const { visibleEventRows } = require('../src/replay');
+  const events = [
+    { type: 'in', t: 100, data: { text: 'h' } },
+    { type: 'in', t: 200, data: { text: 'e' } },
+    { type: 'in', t: 300, data: { text: 'l' } },
+    { type: 'in', t: 400, data: { text: 'p' } },
+    { type: 'in', t: 500, data: { text: ' ' } },
+    { type: 'in', t: 600, data: { text: 'm' } },
+    { type: 'in', t: 700, data: { text: 'e' } },
+    { type: 'out', t: 800, data: { text: 'working', kind: 'plain' } },
+  ];
+  const rows = visibleEventRows(events, events.length - 1, 10);
+  assert.deepEqual(rows.map((row) => row.text), ['help me', 'working']);
+});
+
+test('replay TUI redraws only changed terminal rows', () => {
+  const { writeFrame } = require('../src/replay');
+  const chunks = [];
+  const stdout = { write: (chunk) => chunks.push(chunk) };
+  const previous = [];
+  writeFrame(stdout, ['header', 'body', 'footer'], previous);
+  chunks.length = 0;
+  writeFrame(stdout, ['header', 'changed', 'footer'], previous);
+  assert.equal(chunks.length, 1);
+  assert.match(chunks[0], /\x1b\[2;1H/);
+  assert.doesNotMatch(chunks[0], /\x1b\[1;1H/);
+  assert.doesNotMatch(chunks[0], /\x1b\[3;1H/);
+  assert.doesNotMatch(chunks[0], /\x1b\[2J/);
+});
+
+test('replay TUI recognizes Ctrl-C even in a combined input chunk', () => {
+  const { replayExitCode } = require('../src/replay');
+  assert.equal(replayExitCode('\x1b[A\x03'), 130);
+  assert.equal(replayExitCode('q'), 0);
+  assert.equal(replayExitCode(' '), null);
 });
 
 test('eventHash: deterministic', () => {

@@ -41,6 +41,31 @@ function spawnSpec(commandArgs, usePty, terminalSize = {}) {
   return { command: 'script', args: ['-qefc', command, '/dev/null'] };
 }
 
+function resizeChildPty(pid, terminalSize) {
+  if (process.platform !== 'linux' || !pid) return false;
+  const rows = Number(terminalSize.rows);
+  const columns = Number(terminalSize.columns);
+  if (!(rows > 0 && columns > 0)) return false;
+  try {
+    let current = pid;
+    // `script` starts a shell which execs the requested command.
+    for (let depth = 0; depth < 3; depth++) {
+      const children = fs.readFileSync(`/proc/${current}/task/${current}/children`, 'utf8').trim().split(/\s+/).filter(Boolean);
+      if (!children.length) break;
+      current = Number(children[0]);
+    }
+    const ttyFd = `/proc/${current}/fd/0`;
+    const resize = spawn('stty', ['-F', ttyFd, 'rows', String(rows), 'cols', String(columns)], {
+      stdio: 'ignore',
+    });
+    resize.on('error', () => {});
+    try { process.kill(current, 'SIGWINCH'); } catch { /* child may have exited */ }
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 /**
  * Line-buffered recorder around a raw stream.
  * Emits one event per complete line (kind classified), flushes the
@@ -78,6 +103,7 @@ class LineRecorder {
     const text = line.replace(/\r$/, '');
     const { kind, detail } = classifyLine(text);
     const data = { stream: this.stream, kind, text };
+    if (detail !== undefined) data.detail = detail;
     this.rec.append('out', data);
   }
 
@@ -140,6 +166,11 @@ function wrap(commandArgs, opts = {}) {
     const errR = new LineRecorder(rec, 'stderr');
     const t0 = Date.now();
     let done = false;
+    const onResize = () => resizeChildPty(child.pid, {
+      columns: process.stdout.columns || process.stderr.columns,
+      rows: process.stdout.rows || process.stderr.rows,
+    });
+    if (usePty) process.stdout.on('resize', onResize);
 
     child.stdout.on('data', (c) => {
       const s = c.toString('utf8');
@@ -202,6 +233,7 @@ function wrap(commandArgs, opts = {}) {
     function finalize(code, signal, spawnError) {
       if (done) return;
       done = true;
+      process.stdout.removeListener('resize', onResize);
       detachStdin();
       if (spawnError) {
         rec.append('out', { stream: 'stderr', kind: 'plain', text: `agentbox: failed to spawn: ${spawnError.message}` });
@@ -229,4 +261,4 @@ function wrap(commandArgs, opts = {}) {
   });
 }
 
-module.exports = { wrap, LineRecorder, spawnSpec };
+module.exports = { wrap, LineRecorder, spawnSpec, resizeChildPty };

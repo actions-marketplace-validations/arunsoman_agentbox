@@ -53,7 +53,13 @@ function evKind(ev) {
 
 function evText(ev) {
   const d = ev.data || {};
-  const strip = (s) => String(s == null ? '' : s).replace(/\x1b(?:\[[0-9;]*[A-HJKSTfmnsu]|\][^\x07]*(?:\x07|\x1b\\)|[P^_].*?\x1b\\)/g, '').replace(/^\[TOOL\]\s*/i, '');
+  const strip = (s) => String(s == null ? '' : s)
+    .replace(/\x1b\][^\x07]*(?:\x07|\x1b\\)/g, '')
+    .replace(/\x1b\[[?0-9;:><]*[ -/]*[@-~]/g, '')
+    .replace(/\x1b[P^_].*?\x1b\\/g, '')
+    .replace(/[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/g, '')
+    .replace(/\r/g, '')
+    .replace(/^\[TOOL\]\s*/i, '');
   if (typeof d.text === 'string' && d.text.length) return strip(d.text);
   if (typeof d.detail === 'string') return strip(d.detail);
   if (d.detail && typeof d.detail === 'object') {
@@ -81,6 +87,49 @@ function evText(ev) {
   return '';
 }
 
+function visibleEventRows(events, cur, limit) {
+  const rows = [];
+  const from = Math.max(0, cur - limit * 12);
+  for (let i = from; i <= cur; i++) {
+    const ev = events[i];
+    const k = evKind(ev);
+    if (k === null) continue;
+    const rawText = evText(ev) || '';
+    const human = k === 'in' || k === 'prompt';
+    const text = human ? rawText.replace(/[\r\n]+$/, '') : rawText.trim();
+    if (!text && !(human && /\s/.test(rawText))) continue;
+    const previous = rows[rows.length - 1];
+    if (human && previous && previous.k === k && ev.t - previous.ev.t <= 2500) {
+      previous.text += text;
+      previous.ev = ev;
+      continue;
+    }
+    if (previous && text === previous.text) continue;
+    rows.push({ ev, k, text });
+  }
+  return rows.slice(-limit);
+}
+
+function writeFrame(stdout, lines, previous) {
+  if (!previous.length) stdout.write('\x1b[2J');
+  const writes = [];
+  const count = Math.max(lines.length, previous.length);
+  for (let i = 0; i < count; i++) {
+    const line = lines[i] || '';
+    if (line === previous[i]) continue;
+    writes.push(`\x1b[${i + 1};1H\x1b[2K${line}`);
+  }
+  if (writes.length) stdout.write(writes.join(''));
+  previous.splice(0, previous.length, ...lines);
+}
+
+function replayExitCode(input) {
+  const s = String(input);
+  if (s.includes('\x03')) return 130;
+  if (s.includes('q') || s.includes('Q')) return 0;
+  return null;
+}
+
 function mmss(ms) {
   const s = Math.max(0, ms) / 1000;
   const m = Math.floor(s / 60);
@@ -90,6 +139,7 @@ function mmss(ms) {
 
 function shorten(s, n) {
   s = String(s).replace(/\t/g, '    ');
+  n = Math.max(1, Number(n) || 1);
   if (s.length <= n) return s;
   return s.slice(0, n - 1) + '…';
 }
@@ -156,10 +206,12 @@ function replayTui(file, events, opts = {}) {
 
   let vTime = 0;          // virtual clock (ms into flight)
   let playing = true;
-  let speedIdx = 2;       // 4x default — watching paint dry is not a feature
+  let speedIdx = 1;       // 2x default keeps busy terminal sessions readable
   let lastFrame = Date.now();
   let markerWidth = -1;
   let markers = [];
+  const previousFrame = [];
+  let stopped = false;
 
   const name = (meta && meta.data && meta.data.name) || 'session';
   const cols = () => (stdout.columns || 100);
@@ -168,10 +220,14 @@ function replayTui(file, events, opts = {}) {
   stdout.write('\x1b[?1049h\x1b[?25l'); // alt screen + hide cursor
 
   function shutdown(code) {
+    if (stopped) return;
+    stopped = true;
     clearInterval(timer);
     process.stdin.setRawMode(false);
+    process.stdin.removeListener('data', onKey);
     process.stdin.pause();
     process.removeListener('SIGINT', onSig);
+    stdout.removeListener('resize', render);
     stdout.write('\x1b[?25h\x1b[?1049l\x1b[0m');
     stdout.write(`${DIM}⬢ agentbox: replay ended — ${name}${RESET}\n`);
     process.exit(code);
@@ -196,19 +252,28 @@ function replayTui(file, events, opts = {}) {
   }
 
   function render() {
-    const W = cols();
-    const H = rows();
-    const paneH = Math.max(4, H - 7);
+    const W = Math.max(1, cols());
+    const H = Math.max(1, rows());
+    const paneH = Math.max(0, H - 8);
     const cur = visibleIdx();
     const pct = Math.min(100, (vTime / dur) * 100);
 
     const buf = [];
-    buf.push(`\x1b[H\x1b[2J`);
-    buf.push(`${CYAN}${BOLD}⬢ AGENTBOX REPLAY${RESET}  ${BOLD}${shorten(name, 24)}${RESET}  ${DIM}│${RESET}  ${DIM}${shorten(meta ? meta.data.cmd : '?', W - 46)}${RESET}`);
+    if (H < 8) {
+      buf.push(`${CYAN}${BOLD}⬢ REPLAY${RESET} ${shorten(name, W - 10)}`);
+      buf.push(`${BOLD}${mmss(vTime)}${RESET}/${mmss(dur)} ${SPEEDS[speedIdx]}x`);
+      for (const { text } of visibleEventRows(events, cur, Math.max(0, H - 3))) buf.push(shorten(text, W));
+      while (buf.length < H - 1) buf.push('');
+      buf.push(`${DIM}q quit · space ${playing ? 'pause' : 'play'}${RESET}`);
+      writeFrame(stdout, buf.slice(0, H), previousFrame);
+      return;
+    }
+    if (W < 50) buf.push(`${CYAN}${BOLD}⬢ REPLAY${RESET} ${shorten(name, W - 10)}`);
+    else buf.push(`${CYAN}${BOLD}⬢ AGENTBOX REPLAY${RESET}  ${BOLD}${shorten(name, 24)}${RESET}  ${DIM}│${RESET}  ${DIM}${shorten(meta ? meta.data.cmd : '?', W - 46)}${RESET}`);
     buf.push(`${DIM}${'─'.repeat(W)}${RESET}`);
 
     // timeline bar
-    const barW = Math.max(20, W - 26);
+    const barW = Math.max(1, W - 6);
     const filled = Math.floor((pct / 100) * barW);
     const bar = [];
     for (let x = 0; x < barW; x++) {
@@ -239,29 +304,31 @@ function replayTui(file, events, opts = {}) {
       if (marker) bar[p] = `${marker.color}${marker.mark}${p > filled ? DIM : CYAN}`;
     }
     const speed = SPEEDS[speedIdx];
-    buf.push(`  [${bar.join('')}]  ${BOLD}${mmss(vTime)}${RESET} ${DIM}/ ${mmss(dur)}${RESET}  ${DIM}· ${speed}x · ${cur + 1}/${events.length} events${RESET}`);
+    buf.push(`  [${bar.join('')}]`);
+    buf.push(`  ${BOLD}${mmss(vTime)}${RESET} ${DIM}/ ${mmss(dur)} · ${speed}x · ${cur + 1}/${events.length} events${RESET}`);
     buf.push(`  ${DIM}▲ tool  $ shell  ✎ file  i human${RESET}`);
     buf.push('');
 
     // event pane (last paneH visible events)
-    const from = Math.max(0, cur - paneH + 1);
-    for (let i = from; i <= cur; i++) {
-      const ev = events[i];
-      const k = evKind(ev);
-      if (k === null) continue; // tool_call end outcomes don't spam the pane
+    for (const { ev, k, text } of visibleEventRows(events, cur, paneH)) {
       const st = KIND_STYLE[k] || KIND_STYLE.out;
       const at = mmss(ev.t - t0);
       const tag = st.tag.padEnd(5);
-      buf.push(`${DIM}${at}${RESET} ${st.c}${BOLD}${tag}${RESET} ${st.c}${shorten(evText(ev) || '·', W - 16)}${RESET}`);
+      if (W < 20) buf.push(`${st.c}${shorten(text, W)}${RESET}`);
+      else buf.push(`${DIM}${at}${RESET} ${st.c}${BOLD}${tag}${RESET} ${st.c}${shorten(text, W - 16)}${RESET}`);
     }
 
     // footer
-    while (buf.length < H - 1) buf.push('');
+    while (buf.length < H - 2) buf.push('');
     buf.push(`${DIM}${'─'.repeat(W)}${RESET}`);
-    buf.push(`${DIM} [space] ${playing ? 'pause' : 'play '} │ [←/→] event │ [j/k] 10s │ [[/]] ${speed}x │ [g/G] start/end │ [q] quit${RESET}`);
-    stdout.write(buf.slice(0, H).join('\n') + '\n');
+    const controls = W < 60
+      ? `[space] ${playing ? 'pause' : 'play'}  ←/→ event  q quit`
+      : `[space] ${playing ? 'pause' : 'play '} │ [←/→] event │ [j/k] 10s │ [[/]] ${speed}x │ [g/G] start/end │ [q] quit`;
+    buf.push(`${DIM} ${shorten(controls, W - 1)}${RESET}`);
+    writeFrame(stdout, buf.slice(0, H), previousFrame);
   }
 
+  let lastTick = -1;
   const timer = setInterval(() => {
     const now = Date.now();
     const dt = now - lastFrame;
@@ -273,14 +340,19 @@ function replayTui(file, events, opts = {}) {
         playing = false;
         vTime = dur;
       }
-      render();
+      const tick = Math.floor(vTime / 100);
+      if (tick !== lastTick) {
+        lastTick = tick;
+        render();
+      }
     }
-  }, 80);
+  }, 50);
 
   const onKey = (d) => {
     const s = d.toString('utf8');
     lastFrame = Date.now();
-    if (s === 'q' || s === 'Q' || s === '\x03') { shutdown(0); return; }
+    const exitCode = replayExitCode(s);
+    if (exitCode !== null) { shutdown(exitCode); return; }
     if (s === ' ') { playing = !playing; render(); return; }
     if (s === '\x1b[C' || s === 'l') { step(1); return; }
     if (s === '\x1b[D' || s === 'h') { step(-1); return; }
@@ -327,4 +399,4 @@ function replay(file, opts = {}) {
   return true;
 }
 
-module.exports = { replay, renderStatic };
+module.exports = { replay, renderStatic, visibleEventRows, writeFrame, replayExitCode };

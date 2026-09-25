@@ -39,6 +39,15 @@ function slim(v, cap) {
   } catch { return trunc(String(v), cap); }
 }
 
+function requestKey(id) {
+  if (id === undefined) return null;
+  return `${typeof id}:${String(id)}`;
+}
+
+function responseStatus(msg) {
+  return msg && (msg.error != null || (msg.result && msg.result.isError)) ? 'error' : 'ok';
+}
+
 /** Split a byte stream into complete lines (MCP stdio = 1 JSON-RPC msg/line). */
 class LineSplitter {
   constructor(onLine, onFlush) {
@@ -165,7 +174,7 @@ function runMcpProxy(serverArgs, opts = {}) {
           id: msg.id === undefined ? null : msg.id,
           preview: trunc(line, 400),
         });
-        const key = msg.id === undefined ? `anon${++anonSeq}` : String(msg.id);
+        const key = msg.id === undefined ? `anon:${++anonSeq}` : requestKey(msg.id);
         if (msg.method === 'tools/call' && msg.params) {
           calls += 1;
           rec.append('tool_call', {
@@ -194,18 +203,19 @@ function runMcpProxy(serverArgs, opts = {}) {
           id: msg.id === undefined ? null : msg.id,
           preview: trunc(line, 400),
         });
-        const key = String(msg.id === undefined ? '' : msg.id);
+        const key = requestKey(msg.id);
         if (pending.has(key)) {
           const p = pending.get(key);
           pending.delete(key);
           const result = msg.result || {};
+          const rpcError = msg.error != null;
           rec.append('tool_call', {
             phase: 'end',
             name: p.name,
             source: 'mcp',
-            status: result.isError ? 'error' : 'ok',
+            status: responseStatus(msg),
             durationMs: Date.now() - p.t0,
-            preview: slim(result.content !== undefined ? result.content : result, 500),
+            preview: slim(rpcError ? msg.error : (result.content !== undefined ? result.content : result), 500),
             id: msg.id === undefined ? null : msg.id,
           });
         }
@@ -295,4 +305,4 @@ function initMcp(serverArgs, opts = {}) {
   process.stdout.write(`  ${DIM}alias: ${displayCmd}\n  agentbox must be on PATH (npm i -g agentbox-cli) or replace "agentbox"\n  with \`node <path>/bin/agentbox.js\`. restart the client to pick it up.${RESET}\n`);
 }
 
-module.exports = { runMcpProxy, initMcp, LineSplitter };
+module.exports = { runMcpProxy, initMcp, LineSplitter, requestKey, responseStatus };
